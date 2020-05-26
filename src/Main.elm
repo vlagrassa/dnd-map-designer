@@ -116,7 +116,7 @@ view model =
   in
     Html.div []
       [ Html.div [Attr.align "center"] [ Html.text msg ]
-      , Html.div [ Attr.align "center", Attr.id "map_canvas" ]
+      , Html.div [ Attr.align "center", Attr.id "map_canvas_container" ]
                  [ map
                  ]
       ]
