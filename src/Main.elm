@@ -1,4 +1,4 @@
-module Main exposing (main)
+port module Main exposing (main)
 
 -- Add/modify imports if you'd like. ---------------------------------
 
@@ -57,9 +57,17 @@ type MapStyle
 
 type Msg
   = NullMsg
-  | MouseMove Int Int
+  | MouseMove Coordinate
 
 type alias Flags = ()
+
+
+
+
+-- Ports -------------------------------------------------------------
+
+port receiveMouseMove : (Coordinate -> msg) -> Sub msg
+
 
 
 
@@ -81,20 +89,16 @@ initModel =
 -- Subscriptions and Updates -----------------------------------------
 
 subscriptions : Model -> Sub Msg
-subscriptions model = Sub.none
+subscriptions model =
+  receiveMouseMove MouseMove
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model = case msg of
   NullMsg ->
     (model, Cmd.none)
-  MouseMove xpos ypos ->
-    ( { model | mouseLocation = { x = xpos, y = ypos }}, Cmd.none )
-
-
-setMouseLocation : C.Point -> Msg
-setMouseLocation p =
-  MouseMove (floor (Tuple.first p)) (floor (Tuple.second p))
+  MouseMove coord ->
+    ( { model | mouseLocation = coord}, Cmd.none )
 
 
 
@@ -105,22 +109,15 @@ view : Model -> Html Msg
 view model =
   let
     msg = "Hello World! vinc is a nerd"
-    rect = C.rectangle 900 600
-            |> C.filled (C.uniform Color.lightGrey)
-            |> E.onMouseMove setMouseLocation
-            |> R.svg
-    map = [draw_shapes, draw_grid, draw_bg]
+    map = [draw_mouse, draw_shapes, draw_grid, draw_bg]
             |> List.map (\f -> f model)
             |> C.group
-            |> E.onMouseMove setMouseLocation
             |> R.svg
-    mouse = make_mouse model
   in
     Html.div []
       [ Html.div [Attr.align "center"] [ Html.text msg ]
-      , Html.div [ Attr.align "center" ]
+      , Html.div [ Attr.align "center", Attr.id "map_canvas" ]
                  [ map
-                 , mouse
                  ]
       ]
 
@@ -167,22 +164,11 @@ draw_shapes model =
       |> C.group
 
 
-make_mouse : Model -> Html Msg
-make_mouse model =
-  let
-    pointer = C.circle 10
-      |> C.filled (C.uniform Color.red)
-      |> E.onMouseMove setMouseLocation
-      |> R.svg
-
-    top_dist =  (fromInt (model.mouseLocation.y - 10)) ++ "px"
-    left_dist = (fromInt (model.mouseLocation.x - 10)) ++ "px"
-  in
-    Html.div [ Attr.style "position" "absolute"
-             , Attr.style "top"  top_dist
-             , Attr.style "left" left_dist
-             ]
-             [ pointer ]
+draw_mouse : Model -> C.Collage Msg
+draw_mouse model =
+  C.circle 10
+    |> C.filled (C.uniform Color.red)
+    |> C.shift (mouse_to_gridpoint model)
 
 
 
@@ -201,4 +187,17 @@ convert_shape : Shape -> C.Shape
 convert_shape shape =
   case shape of
     Polygon ps -> C.polygon <| List.map scale_gridpoint ps
+
+mouse_to_gridpoint : Model -> C.Point
+mouse_to_gridpoint model =
+  let
+    xpos = (toFloat model.mouseLocation.x) - (scale 1)
+    ypos = (scale <| model.mapHeight + 2) - ((toFloat model.mouseLocation.y) + (scale 1))
+
+    leftBound = (scale -1) + 10
+    rightBound = (scale <| model.mapWidth  + 1) - 10
+    bottomBound = (scale -1) + 10
+    topBound = (scale <| model.mapHeight + 1) - 10
+  in
+    ( clamp leftBound rightBound xpos, clamp bottomBound topBound ypos )
 

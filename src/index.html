@@ -13,6 +13,11 @@
       var app = Elm.Main.init({
         node: document.getElementById("elm-app")
       });
+
+      // Send in the mouse's position relative to the canvas
+      document.getElementById('map_canvas').addEventListener('mousemove', e => {
+        app.ports.receiveMouseMove.send({x: e.offsetX, y: e.offsetY});
+      });
     </script>
   </body>
 </html>
