@@ -32,7 +32,7 @@ main =
     }
 
 type alias Model = 
-  { mouseLocation : Coordinate
+  { mouseLocation : Maybe Coordinate
   , mapHeight : Int
   , mapWidth : Int
   , shapes : List MapShape
@@ -57,7 +57,7 @@ type MapStyle
 
 type Msg
   = NullMsg
-  | MouseMove Coordinate
+  | MouseMove (Maybe Coordinate)
 
 type alias Flags = ()
 
@@ -66,7 +66,7 @@ type alias Flags = ()
 
 -- Ports -------------------------------------------------------------
 
-port receiveMouseMove : (Coordinate -> msg) -> Sub msg
+port receiveMouseMove : ((Maybe Coordinate) -> msg) -> Sub msg
 
 
 
@@ -78,7 +78,7 @@ init () = (initModel, Cmd.none)
 
 initModel : Model
 initModel = 
-  { mouseLocation = { x = 0, y = 0 }
+  { mouseLocation = Nothing
   , mapHeight = 20
   , mapWidth = 20
   , shapes = []
@@ -166,9 +166,12 @@ draw_shapes model =
 
 draw_mouse : Model -> C.Collage Msg
 draw_mouse model =
-  C.circle 10
-    |> C.filled (C.uniform Color.red)
-    |> C.shift (mouse_to_gridpoint model)
+  case model.mouseLocation of
+    Nothing -> C.filled (C.uniform <| Color.rgba 0 0 0 0) (C.circle 0)
+    Just loc ->
+      C.circle 10
+        |> C.filled (C.uniform Color.red)
+        |> C.shift (mouse_to_gridpoint model loc)
 
 
 
@@ -188,11 +191,11 @@ convert_shape shape =
   case shape of
     Polygon ps -> C.polygon <| List.map scale_gridpoint ps
 
-mouse_to_gridpoint : Model -> C.Point
-mouse_to_gridpoint model =
+mouse_to_gridpoint : Model -> Coordinate -> C.Point
+mouse_to_gridpoint model loc =
   let
-    xpos = (toFloat model.mouseLocation.x) - (scale 1)
-    ypos = (scale <| model.mapHeight + 2) - ((toFloat model.mouseLocation.y) + (scale 1))
+    xpos = (toFloat loc.x) - (scale 1)
+    ypos = (scale <| model.mapHeight + 2) - ((toFloat loc.y) + (scale 1))
 
     leftBound = (scale -1) + 10
     rightBound = (scale <| model.mapWidth  + 1) - 10

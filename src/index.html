@@ -18,6 +18,11 @@
       document.getElementById('map_canvas').addEventListener('mousemove', e => {
         app.ports.receiveMouseMove.send({x: e.offsetX, y: e.offsetY});
       });
+
+      // Send in a null/Nothing value when the mouse leaves the canvas
+      document.getElementById('map_canvas').addEventListener('mouseleave', e => {
+        app.ports.receiveMouseMove.send(null);
+      });
     </script>
   </body>
 </html>
