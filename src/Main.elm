@@ -139,7 +139,7 @@ draw_bg model =
 draw_grid : Model -> C.Collage Msg
 draw_grid model =
   let
-    grid_style = C.traced (C.solid C.thin (C.uniform Color.darkGrey))
+    grid_style = C.traced (C.solid C.thin (C.uniform Color.lightCharcoal))
 
     h_grid_lines = (List.range 0 model.mapHeight)
       |> List.map (\y -> C.segment (0, scale y) (scale model.mapWidth, scale y))
@@ -167,7 +167,7 @@ draw_shapes model =
 draw_mouse : Model -> C.Collage Msg
 draw_mouse model =
   case model.mouseLocation of
-    Nothing -> C.filled (C.uniform <| Color.rgba 0 0 0 0) (C.circle 0)
+    Nothing -> C.filled C.transparent (C.circle 0)
     Just loc ->
       C.circle 10
         |> C.filled (C.uniform Color.red)
