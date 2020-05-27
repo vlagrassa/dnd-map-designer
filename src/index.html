@@ -14,21 +14,48 @@
         node: document.getElementById("elm-app")
       });
 
-      // Locate the SVG element storing the map
-      var canvas = document.getElementById('map_canvas_container');
-      while (canvas.tagName != "svg") {
-        canvas = canvas.firstChild
-      }
+			// Locate the SVG element storing the map
+			var mysvg = document.getElementById('map_canvas_container');
+		  while (mysvg.tagName != "svg") {
+				mysvg = mysvg.firstChild
+		  }
 
       // Send in the mouse's position relative to the canvas
-      canvas.addEventListener('mousemove', e => {
-        app.ports.receiveMouseMove.send({x: e.offsetX, y: e.offsetY});
-      });
+			mysvg.addEventListener('mousemove', e=> {
+				app.ports.receiveMouseMove.send({x: e.offsetX, y: e.offsetY});
+			});
+
 
       // Send in a null/Nothing value when the mouse leaves the canvas
-      canvas.addEventListener('mouseleave', e => {
-        app.ports.receiveMouseMove.send(null);
-      });
+			mysvg.addEventListener('mouseleave', e=> {
+				app.ports.receiveMouseMove.send(null);
+			});
+
+
+			// Draw map onto canvas item when save button is clicked
+			app.ports.sendEditState.subscribe(function(state) {
+				
+				if (!state) {
+					
+					// Locate the SVG element storing the map again in case it
+					// has been changed
+					var mysvg = document.getElementById('map_canvas_container');
+		  		while (mysvg.tagName != "svg") {
+						mysvg = mysvg.firstChild
+		  		}
+
+					// Load canvas, converg SVG to Image, draw Image onto canvas
+					var canvas = document.getElementById("myCanvas");
+					var ctx = canvas.getContext("2d");
+					img = new Image;
+					var svgAsXML = (new XMLSerializer).serializeToString( mysvg );
+					img.src = 'data:image/svg+xml,' + encodeURIComponent( svgAsXML );
+					ctx.drawImage(img, 0, 0);
+
+			  }
+
+		  });
+
     </script>
   </body>
 </html>
