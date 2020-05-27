@@ -39,6 +39,7 @@ type alias Model =
   , mapWidth : Int
   , ground : List Grid.Shape
   , walls  : List Grid.Path
+  , editState : Bool
   }
 
 type alias Coordinate = { x:Int, y:Int }
@@ -47,6 +48,7 @@ type alias Coordinate = { x:Int, y:Int }
 type Msg
   = NullMsg
   | MouseMove (Maybe Coordinate)
+  | SwitchState
 
 type alias Flags = ()
 
@@ -56,6 +58,8 @@ type alias Flags = ()
 -- Ports -------------------------------------------------------------
 
 port receiveMouseMove : ((Maybe Coordinate) -> msg) -> Sub msg
+
+port sendEditState : Bool -> Cmd msg
 
 
 
@@ -72,6 +76,7 @@ initModel =
   , mapWidth = 20
   , ground = []
   , walls = []
+  , editState = True
   }
 
 
@@ -88,29 +93,62 @@ update msg model = case msg of
   NullMsg ->
     (model, Cmd.none)
   MouseMove coord ->
-    ( { model | mouseLocation = coord}, Cmd.none )
+    ( { model | mouseLocation = coord }, Cmd.none )
+  SwitchState ->
+    if model.editState then
+      ( { model | editState = False }, sendEditState False )
+    else
+      ( { model | editState = True }, sendEditState True )
 
 
 
 
 -- View --------------------------------------------------------------
 
+canvas_attributes : Model -> List (Html.Attribute msg)
+canvas_attributes m = [ Attr.style "padding-left" "0" 
+                      , Attr.style "padding-right" "0"
+                      , Attr.style "margin-left" "auto"
+                      , Attr.style "margin-right" "auto"
+                      , Attr.width (round (scale (m.mapWidth + 2)))
+                      , Attr.height (round (scale (m.mapHeight + 2)))
+                      , Attr.style "border" "1px solid red"
+                      , Attr.id "myCanvas" ]
+
+button_attributes = [ Attr.style "margin" "0 auto"
+                    , Attr.style "display" "block"
+                    , Attr.style "margin-top" "15px" ]
+
+
 view : Model -> Html Msg
 view model =
   let
-    msg = "Hello World! vinc is a nerd"
+    msg = "DND Map Designer Studio Suite Lite (TM)"
+    save_msg = "Right click and select \"Save Image As...\" to save!"
     map = [draw_mouse, draw_ground, draw_grid, draw_bg]
             |> List.map (\f -> f model)
             |> C.group
             |> R.svg
   in
-    Html.div []
-      [ Html.div [Attr.align "center"] [ Html.text msg ]
-      , Html.div [ Attr.align "center", Attr.id "map_canvas_container" ]
-                 [ map
-                 ]
-      ]
-
+    Html.div [] (
+        [ Html.h3 [ Attr.align "center", Attr.style "margin" "15px" ] [ Html.text msg ]
+        , Html.div [ Attr.align "center"
+                   , Attr.id "map_canvas_container"
+                   , Attr.style "display" (if model.editState then "block" else "none") ]
+                   [ map ]
+        , Html.canvas
+            ( [Attr.style "display" (if model.editState then "none" else "block")]
+                ++ (canvas_attributes model) ) [ ]
+        , Html.button ( (onClick SwitchState) :: button_attributes )
+                      [ Html.text (if model.editState then "Save" else "Edit") ]
+        ] ++ (
+          if model.editState then []
+          else
+            [ Html.div [ Attr.align "center"
+                       , Attr.style "margin-top" "15px"
+                       , Attr.style "font-family" "Comic Sans MS" ]
+                       -- dude im a graphic design genius
+                       [ Html.text save_msg ] ]))
 
 
 
