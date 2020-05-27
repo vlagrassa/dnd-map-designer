@@ -188,19 +188,11 @@ shape_to_collage (fill, line) shape =
       -- Convert polygons pretty directly
       Grid.Polygon ps -> scale_and_style ps
 
-      -- Collage polygons are easier to position, so calculate coords and dimensions
-      Grid.Rect p1 p2 ->
-        let
-          (x, y)     = Grid.minCoords p1 p2
-          (wid, hei) = Grid.dimensions p1 p2
-        in
-          scale_and_style [(x, y), (x + wid, y), (x + wid, y + hei), (x, y + hei)]
-
       -- Draw the outlines, and only fill in the part that isn't in a hole
-      Grid.Donut outline holes ->
-        -- TODO - Figure out what needs to go here
-        shape_to_collage (fill, line) outline
-        --scale_make outline :: (List.map scale_make holes) |> C.group
+      -- This is the tricky part...
+      Grid.Composite outline holes ->
+        C.group <| scale_and_style outline :: List.map scale_and_style holes
+
 
 mouse_to_gridpoint : Model -> Coordinate -> C.Point
 mouse_to_gridpoint model loc =

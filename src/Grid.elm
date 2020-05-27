@@ -3,12 +3,28 @@ module Grid exposing (..)
 
 type alias Point = (Float, Float)
 
+type alias Polygon = List Point
+
 type Shape
-  = Polygon (List Point)
-  | Rect Point Point
-  | Donut Shape (List Shape)
+  = Polygon   Polygon
+  | Composite Polygon (List Polygon)
 
 type Path = Path (List Point)
+
+
+
+makeRectPts : Point -> Point -> Shape
+makeRectPts p1 p2 =
+  let
+    corner          = minCoords  p1 p2
+    (width, height) = dimensions p1 p2
+  in
+    makeRectDims corner width height
+
+makeRectDims : Point -> Float -> Float -> Shape
+makeRectDims (x, y) width height =
+  Polygon [(x, y), (x + width, y), (x + width, y + height), (x, y + height)]
+
 
 
 
@@ -30,13 +46,16 @@ mapY : (Float -> Float) -> Point -> Point
 mapY f = Tuple.mapSecond f
 
 
+mapPolygon : (Float -> Float) -> Polygon -> Polygon
+mapPolygon f = List.map (map f)
+
 mapShape : (Float -> Float) -> Shape -> Shape
 mapShape f shape =
   case shape of
-    Polygon ps -> Polygon <| List.map (map f) ps
-    Rect p1 p2 -> Rect (map f p1) (map f p2)
-    Donut outline holes ->
-      Donut (mapShape f outline) (List.map (mapShape f) holes)
+    Polygon ps ->
+      Polygon (mapPolygon f ps)
+    Composite outline holes ->
+      Composite (mapPolygon f outline) (List.map (mapPolygon f) holes)
 
 mapPath : (Float -> Float) -> Path -> Path
 mapPath f path =
