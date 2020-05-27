@@ -85,6 +85,11 @@ intersection : Shape -> Shape -> Maybe Shape
 intersection a b = Nothing
 
 
+-- If two shapes overlap, return the first minus the second; if not, return Nothing
+complement : Shape -> Shape -> Maybe Shape
+complement a b = Nothing
+
+
 
 
 line_intersect : (Point, Point) -> (Point, Point) -> Maybe Point
