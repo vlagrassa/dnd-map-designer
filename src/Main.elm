@@ -110,8 +110,8 @@ canvas_attributes m = [ Attr.style "padding-left" "0"
                       , Attr.style "padding-right" "0"
                       , Attr.style "margin-left" "auto"
                       , Attr.style "margin-right" "auto"
-                      , Attr.width (round (scale (m.mapWidth + 2)))
-                      , Attr.height (round (scale (m.mapHeight + 2)))
+                      , Attr.width  (round (scaleGridToCol_i (m.mapWidth  + 2)))
+                      , Attr.height (round (scaleGridToCol_i (m.mapHeight + 2)))
                       , Attr.style "border" "1px solid red"
                       , Attr.id "myCanvas" ]
 
@@ -157,16 +157,18 @@ view model =
 draw_bg : Model -> C.Collage Msg
 draw_bg model =
   let
-    width  = scale (model.mapWidth  + 2)
-    height = scale (model.mapHeight + 2)
+    width  = scaleGridToCol_i (model.mapWidth  + 2)
+    height = scaleGridToCol_i (model.mapHeight + 2)
   in
   C.rectangle width height
     |> C.filled (C.uniform Color.lightGrey)
-    |> C.shift (((width / 2) - (scale 1)), ((height / 2) - (scale 1)))
+    |> C.shift (((width / 2) - (scaleGridToCol 1)), ((height / 2) - (scaleGridToCol 1)))
 
 draw_grid : Model -> C.Collage Msg
 draw_grid model =
   let
+    scale = scaleGridToCol_i
+
     grid_style = C.traced (C.solid C.thin (C.uniform Color.darkGray))
 
     h_grid_lines = (List.range 0 model.mapHeight)
@@ -198,29 +200,78 @@ draw_mouse model =
     Just loc ->
       C.circle 10
         |> C.filled (C.uniform Color.red)
-        |> C.shift (mouse_to_gridpoint model loc)
+        |> C.shift (jsToCol model loc)
 
 
 
 
--- Converting Grid to Collage ----------------------------------------
+-- Converting Between Coordinate Systems -----------------------------
+
+{-
+
+Dealing with three coordinate systems:
+
+  Coordinate  "Js"    - HTML/JS position relative to the SVG/canvas element
+  C.Point     "Col"   - Elm position within the Collage
+  Grid.Point  "Grid"  - Elm position relative to the map grid
+
+  These functions will probably have to get more complicated to account for
+  zooming/panning (assuming we implement that) but they're good enough for now
+
+-}
 
 scaling_factor = 35
 
-scale : Int -> Float
-scale = scale_f << toFloat
 
-scale_f : Float -> Float
-scale_f = (*) scaling_factor
+-- Grid positions to Collage positions
 
-scale_gridpoint : Grid.Point -> C.Point
-scale_gridpoint = Grid.map scale_f
+scaleGridToCol : Float -> Float
+scaleGridToCol = (*) scaling_factor
 
+scaleGridToCol_i : Int -> Float
+scaleGridToCol_i = scaleGridToCol << toFloat
+
+gridToCol : Grid.Point -> C.Point
+gridToCol = Grid.map scaleGridToCol
+
+
+-- Collage positions to Grid positions
+
+scaleColToGrid : Float -> Float
+scaleColToGrid n = n / scaling_factor
+
+colToGrid : C.Point -> Grid.Point
+colToGrid = Tuple.mapBoth scaleColToGrid scaleColToGrid
+
+
+-- Screen coordinates to Collage and Grid positions
+
+jsToCol : Model -> Coordinate -> C.Point
+jsToCol model coord =
+  let
+    xpos = (toFloat coord.x) - (scaleGridToCol 1)
+    ypos = (scaleGridToCol_i <| model.mapHeight + 2) - ((toFloat coord.y) + (scaleGridToCol 1))
+
+    leftBound =   (scaleGridToCol -1) + 10
+    rightBound =  (scaleGridToCol_i <| model.mapWidth  + 1) - 10
+    bottomBound = (scaleGridToCol -1) + 10
+    topBound =    (scaleGridToCol_i <| model.mapHeight + 1) - 10
+  in
+    ( clamp leftBound rightBound xpos, clamp bottomBound topBound ypos )
+
+
+jsToGrid : Model -> Coordinate -> Grid.Point
+jsToGrid model coord = colToGrid <| jsToCol model coord
+
+
+
+
+-- Converting Shapes to Collage Elements -----------------------------
 
 shape_to_collage : (C.FillStyle, C.LineStyle) -> Grid.Shape -> C.Collage Msg
 shape_to_collage (fill, line) shape =
   let
-    scale_and_style = List.map scale_gridpoint >> C.polygon >> C.styled (fill, line)
+    scale_and_style = List.map gridToCol >> C.polygon >> C.styled (fill, line)
   in
     case shape of
       -- Convert polygons pretty directly
@@ -230,20 +281,6 @@ shape_to_collage (fill, line) shape =
       -- This is the tricky part...
       Grid.Composite outline holes ->
         C.group <| scale_and_style outline :: List.map scale_and_style holes
-
-
-mouse_to_gridpoint : Model -> Coordinate -> C.Point
-mouse_to_gridpoint model loc =
-  let
-    xpos = (toFloat loc.x) - (scale 1)
-    ypos = (scale <| model.mapHeight + 2) - ((toFloat loc.y) + (scale 1))
-
-    leftBound = (scale -1) + 10
-    rightBound = (scale <| model.mapWidth  + 1) - 10
-    bottomBound = (scale -1) + 10
-    topBound = (scale <| model.mapHeight + 1) - 10
-  in
-    ( clamp leftBound rightBound xpos, clamp bottomBound topBound ypos )
 
 
 
