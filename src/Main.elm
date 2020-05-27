@@ -19,6 +19,8 @@ import Collage.Events as E
 import Collage.Render as R
 import Color exposing (Color)
 
+import Grid
+
 
 -- Main Stuff --------------------------------------------------------
 
@@ -35,20 +37,11 @@ type alias Model =
   { mouseLocation : Maybe Coordinate
   , mapHeight : Int
   , mapWidth : Int
-  , ground : List Shape
-  , walls  : List Path
+  , ground : List Grid.Shape
+  , walls  : List Grid.Path
   }
 
 type alias Coordinate = { x:Int, y:Int }
-
-type Shape
-  = Polygon (List GridPoint)
-  | Rect GridPoint GridPoint
-  | Donut Shape (List Shape)
-
-type Path = Path (List GridPoint)
-
-type alias GridPoint = (Float, Float)
 
 
 type Msg
@@ -182,28 +175,29 @@ scale = scale_f << toFloat
 scale_f : Float -> Float
 scale_f = (*) scaling_factor
 
-scale_gridpoint : GridPoint -> C.Point
-scale_gridpoint = Tuple.mapBoth scale_f scale_f
+scale_gridpoint : Grid.Point -> C.Point
+scale_gridpoint = Grid.map scale_f
 
-shape_to_collage : (C.FillStyle, C.LineStyle) -> Shape -> C.Collage Msg
+
+shape_to_collage : (C.FillStyle, C.LineStyle) -> Grid.Shape -> C.Collage Msg
 shape_to_collage (fill, line) shape =
   let
     scale_and_style = List.map scale_gridpoint >> C.polygon >> C.styled (fill, line)
   in
     case shape of
       -- Convert polygons pretty directly
-      Polygon ps -> scale_and_style ps
+      Grid.Polygon ps -> scale_and_style ps
 
       -- Collage polygons are easier to position, so calculate coords and dimensions
-      Rect p1 p2 ->
+      Grid.Rect p1 p2 ->
         let
-          (x, y)     = map2_gridpoint min p1 p2
-          (wid, hei) = map2_gridpoint (\i j -> abs <| i - j) p1 p2
+          (x, y)     = Grid.minCoords p1 p2
+          (wid, hei) = Grid.dimensions p1 p2
         in
           scale_and_style [(x, y), (x + wid, y), (x + wid, y + hei), (x, y + hei)]
 
       -- Draw the outlines, and only fill in the part that isn't in a hole
-      Donut outline holes ->
+      Grid.Donut outline holes ->
         -- TODO - Figure out what needs to go here
         shape_to_collage (fill, line) outline
         --scale_make outline :: (List.map scale_make holes) |> C.group
@@ -223,52 +217,29 @@ mouse_to_gridpoint model loc =
 
 
 
-map_gridpoint : (Float -> Float) -> GridPoint -> GridPoint
-map_gridpoint f = Tuple.mapBoth f f
-
-map2_gridpoint : (Float -> Float -> Float) -> GridPoint -> GridPoint -> GridPoint
-map2_gridpoint f p1 p2 =
-  let
-    xpos = f (Tuple.first p1) (Tuple.first p2)
-    ypos = f (Tuple.second p1) (Tuple.second p2)
-  in
-    (xpos, ypos)
-
-
 
 -- Adding and Removing Shapes ----------------------------------------
 
-add_ground : Shape -> Model -> Model
+add_ground : Grid.Shape -> Model -> Model
 add_ground shape model =
   let
-    add_shape : List Shape -> Shape -> List Shape
+    add_shape : List Grid.Shape -> Grid.Shape -> List Grid.Shape
     add_shape shape_list new_shape = case shape_list of
       [] -> [new_shape]
       head::tail ->
-        case union head new_shape of
+        case Grid.union head new_shape of
           Nothing -> head :: add_shape tail new_shape
           Just u  -> add_shape tail u
   in
     {model | ground = add_shape model.ground shape}
 
-add_wall : Path -> Model -> Model
+add_wall : Grid.Path -> Model -> Model
 add_wall path model =
   { model | walls = path :: model.walls }
 
 
-remove_ground : Shape -> Model -> Model
+remove_ground : Grid.Shape -> Model -> Model
 remove_ground shape model = model
 
-remove_wall : Path -> Model -> Model
+remove_wall : Grid.Path -> Model -> Model
 remove_wall path model = model
-
-
-
--- If two shapes overlap, return their union; if not, return Nothing
-union : Shape -> Shape -> Maybe Shape
-union a b = Nothing
-
-
--- If two shapes overlap, return their intersection; if not, return Nothing
-intersection : Shape -> Shape -> Maybe Shape
-intersection a b = Nothing
