@@ -35,24 +35,20 @@ type alias Model =
   { mouseLocation : Maybe Coordinate
   , mapHeight : Int
   , mapWidth : Int
-  , shapes : List MapShape
+  , ground : List Shape
+  , walls  : List Path
   }
 
 type alias Coordinate = { x:Int, y:Int }
 
-type alias MapShape =
-  { shape : Shape
-  , style : MapStyle
-  }
-
 type Shape
   = Polygon (List GridPoint)
+  | Rect GridPoint GridPoint
+  | Donut Shape (List Shape)
 
-type alias GridPoint = (Int, Int)
+type Path = Path (List GridPoint)
 
-type MapStyle
-  = Wall
-  | Ground
+type alias GridPoint = (Float, Float)
 
 
 type Msg
@@ -81,7 +77,8 @@ initModel =
   { mouseLocation = Nothing
   , mapHeight = 20
   , mapWidth = 20
-  , shapes = []
+  , ground = []
+  , walls = []
   }
 
 
@@ -109,7 +106,7 @@ view : Model -> Html Msg
 view model =
   let
     msg = "Hello World! vinc is a nerd"
-    map = [draw_mouse, draw_shapes, draw_grid, draw_bg]
+    map = [draw_mouse, draw_ground, draw_grid, draw_bg]
             |> List.map (\f -> f model)
             |> C.group
             |> R.svg
@@ -139,7 +136,7 @@ draw_bg model =
 draw_grid : Model -> C.Collage Msg
 draw_grid model =
   let
-    grid_style = C.traced (C.solid C.thin (C.uniform Color.lightCharcoal))
+    grid_style = C.traced (C.solid C.thin (C.uniform Color.darkGray))
 
     h_grid_lines = (List.range 0 model.mapHeight)
       |> List.map (\y -> C.segment (0, scale y) (scale model.mapWidth, scale y))
@@ -152,17 +149,16 @@ draw_grid model =
     h_grid_lines ++ v_grid_lines
       |> C.group
 
-draw_shapes : Model -> C.Collage Msg
-draw_shapes model =
+draw_ground : Model -> C.Collage Msg
+draw_ground model =
   let
-    make_collage shape = case shape.style of
-      Wall   -> C.filled (C.uniform Color.black) <| convert_shape shape.shape
-      Ground -> C.filled (C.uniform Color.white) <| convert_shape shape.shape
+    fill_style = C.uniform (Color.rgba 1 1 1 0.5)
+    line_style = C.solid C.thick (C.uniform Color.black)
   in
-    model.shapes
-      |> List.map make_collage
-      |> C.group
+    List.map (shape_to_collage (fill_style, line_style)) model.ground |> C.group
 
+draw_paths : Model -> C.Collage Msg
+draw_paths model = Debug.todo "Draw Paths"
 
 draw_mouse : Model -> C.Collage Msg
 draw_mouse model =
@@ -181,15 +177,36 @@ draw_mouse model =
 scaling_factor = 35
 
 scale : Int -> Float
-scale = (*) scaling_factor << toFloat
+scale = scale_f << toFloat
+
+scale_f : Float -> Float
+scale_f = (*) scaling_factor
 
 scale_gridpoint : GridPoint -> C.Point
-scale_gridpoint = Tuple.mapBoth scale scale
+scale_gridpoint = Tuple.mapBoth scale_f scale_f
 
-convert_shape : Shape -> C.Shape
-convert_shape shape =
-  case shape of
-    Polygon ps -> C.polygon <| List.map scale_gridpoint ps
+shape_to_collage : (C.FillStyle, C.LineStyle) -> Shape -> C.Collage Msg
+shape_to_collage (fill, line) shape =
+  let
+    scale_and_style = List.map scale_gridpoint >> C.polygon >> C.styled (fill, line)
+  in
+    case shape of
+      -- Convert polygons pretty directly
+      Polygon ps -> scale_and_style ps
+
+      -- Collage polygons are easier to position, so calculate coords and dimensions
+      Rect p1 p2 ->
+        let
+          (x, y)     = map2_gridpoint min p1 p2
+          (wid, hei) = map2_gridpoint (\i j -> abs <| i - j) p1 p2
+        in
+          scale_and_style [(x, y), (x + wid, y), (x + wid, y + hei), (x, y + hei)]
+
+      -- Draw the outlines, and only fill in the part that isn't in a hole
+      Donut outline holes ->
+        -- TODO - Figure out what needs to go here
+        shape_to_collage (fill, line) outline
+        --scale_make outline :: (List.map scale_make holes) |> C.group
 
 mouse_to_gridpoint : Model -> Coordinate -> C.Point
 mouse_to_gridpoint model loc =
@@ -204,3 +221,54 @@ mouse_to_gridpoint model loc =
   in
     ( clamp leftBound rightBound xpos, clamp bottomBound topBound ypos )
 
+
+
+map_gridpoint : (Float -> Float) -> GridPoint -> GridPoint
+map_gridpoint f = Tuple.mapBoth f f
+
+map2_gridpoint : (Float -> Float -> Float) -> GridPoint -> GridPoint -> GridPoint
+map2_gridpoint f p1 p2 =
+  let
+    xpos = f (Tuple.first p1) (Tuple.first p2)
+    ypos = f (Tuple.second p1) (Tuple.second p2)
+  in
+    (xpos, ypos)
+
+
+
+-- Adding and Removing Shapes ----------------------------------------
+
+add_ground : Shape -> Model -> Model
+add_ground shape model =
+  let
+    add_shape : List Shape -> Shape -> List Shape
+    add_shape shape_list new_shape = case shape_list of
+      [] -> [new_shape]
+      head::tail ->
+        case union head new_shape of
+          Nothing -> head :: add_shape tail new_shape
+          Just u  -> add_shape tail u
+  in
+    {model | ground = add_shape model.ground shape}
+
+add_wall : Path -> Model -> Model
+add_wall path model =
+  { model | walls = path :: model.walls }
+
+
+remove_ground : Shape -> Model -> Model
+remove_ground shape model = model
+
+remove_wall : Path -> Model -> Model
+remove_wall path model = model
+
+
+
+-- If two shapes overlap, return their union; if not, return Nothing
+union : Shape -> Shape -> Maybe Shape
+union a b = Nothing
+
+
+-- If two shapes overlap, return their intersection; if not, return Nothing
+intersection : Shape -> Shape -> Maybe Shape
+intersection a b = Nothing
