@@ -3,6 +3,7 @@ module Grid exposing (..)
 
 type alias Point = (Float, Float)
 
+type alias Line = (Point, Point)
 type alias Polygon = List Point
 
 type Shape
@@ -117,6 +118,18 @@ calc_point ((p1_x, p1_y), (p2_x, p2_y)) ((q1_x, q1_y), (q2_x, q2_y)) =
     else
       Just ( (q_b*p_c - p_b*q_c) / determinant, (p_a*q_c - q_a*p_c) / determinant)
 
+
+check_bound : Line -> Point -> Maybe Point
+check_bound ((p1_x, p1_y), (p2_x, p2_y)) (x, y) =
+  let
+    (p_x_min, p_x_max) = (min p1_x p2_x, max p1_x p2_x)
+    (p_y_min, p_y_max) = (min p1_y p2_y, max p1_y p2_y)
+  in
+    if (p_x_min <= x && x <= p_x_max && p_y_min <= y && y <= p_y_max) then
+      Just (x,y)
+    else
+      Nothing
+
 check_bounds : (Point, Point) -> (Point, Point) -> Point -> Maybe Point
 check_bounds ((p1_x, p1_y), (p2_x, p2_y)) ((q1_x, q1_y), (q2_x, q2_y)) (x, y) =
   let
@@ -127,3 +140,63 @@ check_bounds ((p1_x, p1_y), (p2_x, p2_y)) ((q1_x, q1_y), (q2_x, q2_y)) (x, y) =
       Just (x,y)
     else
       Nothing
+
+
+
+solve_for_x : Float -> Line -> Maybe Float
+solve_for_x y ((x1, y1), (x2, y2)) =
+  if (x1 == x2) then
+    if (y1 == y2) then Nothing else Just x1
+  else
+    let
+      m = (y2 - y1) / (x2 - x1)
+    in
+      Just <| x1 + ((y - y1) / m)
+
+
+
+point_inside_polygon : Point -> Polygon -> Bool
+point_inside_polygon (x,y) poly =
+  let
+    check_x (n,_) = if n >= x then Just n else Nothing
+    shape_lines = pointsToLines poly
+
+    maybe_to_bool m = case m of
+      Nothing  -> False
+      Just foo -> True
+
+    intersects_horizontal line =
+      solve_for_x y line
+        |> Maybe.andThen (\n -> check_bound line (n, y))
+        |> Maybe.andThen check_x
+
+    ends_on_horizontal ((p_x, p_y), (q_x, q_y)) =
+      p_y /= y && q_y == y && q_x >= x
+
+    intersections = List.map intersects_horizontal shape_lines
+
+    num_intersections = intersections
+      |> List.map maybe_to_bool
+      |> List.filter identity
+      |> List.length
+
+    num_ends = List.map ends_on_horizontal shape_lines
+      |> List.filter identity
+      |> List.length
+
+    on_outline = List.foldl (\n acc -> acc || n == Just x) False intersections
+
+  in
+    on_outline || modBy 2 (num_intersections - num_ends) == 1
+
+
+pointInsideShape : Point -> Shape -> Bool
+pointInsideShape pt shape =
+  case shape of
+    Polygon ps -> point_inside_polygon pt ps
+    Composite outline holes ->
+      if point_inside_polygon pt outline then
+        List.foldl (\x acc -> acc || point_inside_polygon pt x) False holes
+      else
+        False
+
