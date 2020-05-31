@@ -76,6 +76,22 @@ dimensions = map2 (\i j -> abs <| i - j)
 
 
 
+pointsToLines : List Point -> List (Point, Point)
+pointsToLines =
+  case list of
+    [] -> []
+    p::ps ->
+      let
+        recurse xs = case xs of
+          [] -> []
+          x :: [] -> [(x, p)]
+          x :: y :: more ->
+            (x, y) :: recurse (y :: more)
+      in
+        recurse list
+
+
+
 -- If two shapes overlap, return their union; if not, return Nothing
 union : Shape -> Shape -> Maybe Shape
 union a b = Nothing
