@@ -15,6 +15,7 @@ import Debug
 
 import Json.Decode as D
 import Collage as C
+import Collage.Layout as L
 import Collage.Events as E
 import Collage.Render as R
 import Color exposing (Color)
@@ -41,16 +42,17 @@ type alias Model =
   , walls  : List Grid.Path
   , editState : Bool
   , mouseDown : Bool
+  , lockToGrid : Bool
   }
 
 type alias Coordinate = { x:Int, y:Int }
-
 
 type Msg
   = NullMsg
   | MouseMove (Maybe Coordinate)
   | SwitchState
   | MouseUpDown Bool
+  | SwitchLocking Bool
 
 type alias Flags = ()
 
@@ -77,7 +79,7 @@ anotherSquare : Grid.Shape
 anotherSquare = Grid.Polygon [(1,1),(1.5,2)]
 
 aPath : Grid.Path
-aPath = Grid.Path [(1,1), (5.8,2.1), (3.5, 3.6)]
+aPath = Grid.Path [(1,1), (5.8,2.1), (3.5, 3.6),(1,1)]
 
 init : Flags -> (Model, Cmd Msg)
 init () = (initModel, Cmd.none)
@@ -91,6 +93,7 @@ initModel =
   , walls = [ ]
   , editState = True
   , mouseDown = False
+  , lockToGrid = True
   }
 
 
@@ -109,14 +112,17 @@ update msg model = case msg of
   NullMsg ->
     (model, Cmd.none)
   MouseMove coord ->
-    ( { model | mouseLocation = coord
-              , walls =
-                  if model.mouseDown
-                  then case (model.walls, model.mouseLocation) of
-                    ([], Just loc) -> [ Grid.Path [(jsToGrid model loc)] ]
-                    (hd::tl, Just loc) -> (Grid.addPointPath (jsToGrid model loc) hd) :: tl
-                    _ -> model.walls
-                  else model.walls }, Cmd.none )
+    let
+      toGrid = if model.lockToGrid then jsToGridLocked else jsToGrid
+    in
+      ( { model | mouseLocation = coord
+                , walls =
+                    if model.mouseDown
+                    then case (model.walls, model.mouseLocation) of
+                      ([], Just loc) -> [ Grid.Path [(toGrid model loc)] ]
+                      (hd::tl, Just loc) -> (Grid.addPointPath (toGrid model loc) hd) :: tl
+                      _ -> model.walls
+                    else model.walls }, Cmd.none )
 --              , ground =
 --                  if model.mouseDown
 --                  then case (model.ground, model.mouseLocation) of
@@ -131,7 +137,11 @@ update msg model = case msg of
       ( { model | editState = True }, sendEditState True )
   MouseUpDown b ->
     ( { model | mouseDown = b
+              , ground = case model.walls of
+                           [] -> model.ground
+                           hd::tl -> (Grid.pathToShape hd) :: model.ground 
               , walls = (Grid.Path []) :: model.walls }, Cmd.none )
+  SwitchLocking b -> ( { model | lockToGrid = b }, Cmd.none )
 
 
 
@@ -167,6 +177,9 @@ view model =
   in
     Html.div [] (
         [ Html.h3 [ Attr.align "center", Attr.style "margin" "15px" ] [ Html.text msg ]
+        , Html.div [ Attr.align "center"
+                   , Attr.style "margin-bottom" "-4px" ]
+                   (if model.editState then [ draw_menu model |> R.svg ] else [])
         , Html.div [ Attr.align "center"
                    , Attr.id "map_canvas_container"
                    , Attr.style "display" (if model.editState then "block" else "none") ]
@@ -243,6 +256,23 @@ draw_mouse model =
         |> C.shift (jsToCol model loc)
 
 
+draw_menu : Model -> C.Collage Msg
+draw_menu model =
+  let
+      fill = C.uniform (Color.lightGray)
+      outline = C.solid C.ultrathin (C.uniform Color.gray)
+      inline = C.solid C.ultrathin (C.uniform Color.black)
+      width  = scaleGridToCol_i (model.mapWidth - 2)
+      height = 50
+      rect = C.rectangle 25 18 |> C.styled (fill,inline) |> C.shiftX 30
+              |> E.onClick (SwitchLocking True)
+      squiggle = C.roundedRectangle 25 18 8 |> C.styled (fill,inline) |> C.shiftX 70
+                    |> E.onClick (SwitchLocking False)
+  in
+      C.rectangle width height |> C.styled (fill,outline)
+          |> L.at L.left rect
+          |> L.at L.left squiggle
+
 
 
 -- Converting Between Coordinate Systems -----------------------------
@@ -304,6 +334,9 @@ jsToGrid : Model -> Coordinate -> Grid.Point
 jsToGrid model coord = colToGrid <| jsToCol model coord
 
 
+jsToGridLocked : Model -> Coordinate -> Grid.Point
+jsToGridLocked model coord =
+  Grid.roundPoint <| colToGrid <| jsToCol model coord
 
 
 -- Converting Shapes to Collage Elements -----------------------------
@@ -324,8 +357,8 @@ shape_to_collage (fill, line) shape =
 
 path_to_collage : (C.LineStyle) -> Grid.Path -> C.Collage Msg
 path_to_collage line (Grid.Path p) =
-  (C.path (List.map gridToCol p)) |> C.traced line
-
+--  (C.path (List.map gridToCol p)) |> C.traced line
+  (C.path (List.map gridToCol p)) |> C.close |> C.styled (C.uniform Color.red, line)
 
 -- Adding and Removing Shapes ----------------------------------------
 

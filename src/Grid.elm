@@ -24,6 +24,15 @@ addPointPath point (Path p) =
   Path (point :: p)
 
 
+pathToShape : Path -> Shape
+pathToShape (Path p) =
+  Polygon p
+
+
+roundPoint : Point -> Point
+roundPoint (x,y) =
+  (toFloat <| round x, toFloat <| round y)
+
 makeRectPts : Point -> Point -> Shape
 makeRectPts p1 p2 =
   let
