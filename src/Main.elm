@@ -116,7 +116,7 @@ update msg model = case msg of
                     ([], Just loc) -> [ Grid.Path [(jsToGrid model loc)] ]
                     (hd::tl, Just loc) -> (Grid.addPointPath (jsToGrid model loc) hd) :: tl
                     _ -> model.walls
-                  else (Grid.Path []) :: model.walls }, Cmd.none )
+                  else model.walls }, Cmd.none )
 --              , ground =
 --                  if model.mouseDown
 --                  then case (model.ground, model.mouseLocation) of
@@ -130,7 +130,8 @@ update msg model = case msg of
     else
       ( { model | editState = True }, sendEditState True )
   MouseUpDown b ->
-    ( { model | mouseDown = b }, Cmd.none )
+    ( { model | mouseDown = b
+              , walls = (Grid.Path []) :: model.walls }, Cmd.none )
 
 
 
