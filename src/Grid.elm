@@ -12,6 +12,17 @@ type Shape
 type Path = Path (List Point)
 
 
+addPointToShape : Point -> Shape -> Shape
+addPointToShape point s =
+  case s of
+    Polygon p -> point::p |> Polygon
+    Composite outside holes -> s
+
+
+addPointPath : Point -> Path -> Path
+addPointPath point (Path p) =
+  Path (point :: p)
+
 
 makeRectPts : Point -> Point -> Shape
 makeRectPts p1 p2 =

@@ -31,6 +31,15 @@
 				app.ports.receiveMouseMove.send(null);
 			});
 
+			// mousedown
+			mysvg.addEventListener('mousedown', e=> {
+				app.ports.receiveMouseUpDown.send(true);
+		  });
+
+			// mouseup
+			mysvg.addEventListener('mouseup', e=> {
+				app.ports.receiveMouseUpDown.send(false);
+		  });
 
 			// Draw map onto canvas item when save button is clicked
 			app.ports.sendEditState.subscribe(function(state) {

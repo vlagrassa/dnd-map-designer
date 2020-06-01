@@ -40,6 +40,7 @@ type alias Model =
   , ground : List Grid.Shape
   , walls  : List Grid.Path
   , editState : Bool
+  , mouseDown : Bool
   }
 
 type alias Coordinate = { x:Int, y:Int }
@@ -49,6 +50,7 @@ type Msg
   = NullMsg
   | MouseMove (Maybe Coordinate)
   | SwitchState
+  | MouseUpDown Bool
 
 type alias Flags = ()
 
@@ -59,6 +61,8 @@ type alias Flags = ()
 
 port receiveMouseMove : ((Maybe Coordinate) -> msg) -> Sub msg
 
+port receiveMouseUpDown : (Bool -> msg) -> Sub msg
+
 port sendEditState : Bool -> Cmd msg
 
 
@@ -66,17 +70,27 @@ port sendEditState : Bool -> Cmd msg
 
 -- Initialization ----------------------------------------------------
 
+basicSquare : Grid.Shape
+basicSquare = Grid.Polygon [(2,13),(7,13),(7,8),(2,8)]
+
+anotherSquare : Grid.Shape
+anotherSquare = Grid.Polygon [(1,1),(1.5,2)]
+
+aPath : Grid.Path
+aPath = Grid.Path [(1,1), (5.8,2.1), (3.5, 3.6)]
+
 init : Flags -> (Model, Cmd Msg)
 init () = (initModel, Cmd.none)
 
 initModel : Model
 initModel = 
   { mouseLocation = Nothing
-  , mapHeight = 20
+  , mapHeight = 15
   , mapWidth = 20
-  , ground = []
-  , walls = []
+  , ground = [ ]
+  , walls = [ ]
   , editState = True
+  , mouseDown = False
   }
 
 
@@ -85,7 +99,9 @@ initModel =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-  receiveMouseMove MouseMove
+  Sub.batch
+    [ receiveMouseMove MouseMove
+    , receiveMouseUpDown MouseUpDown]
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
@@ -93,12 +109,28 @@ update msg model = case msg of
   NullMsg ->
     (model, Cmd.none)
   MouseMove coord ->
-    ( { model | mouseLocation = coord }, Cmd.none )
+    ( { model | mouseLocation = coord
+              , walls =
+                  if model.mouseDown
+                  then case (model.walls, model.mouseLocation) of
+                    ([], Just loc) -> [ Grid.Path [(jsToGrid model loc)] ]
+                    (hd::tl, Just loc) -> (Grid.addPointPath (jsToGrid model loc) hd) :: tl
+                    _ -> model.walls
+                  else (Grid.Path []) :: model.walls }, Cmd.none )
+--              , ground =
+--                  if model.mouseDown
+--                  then case (model.ground, model.mouseLocation) of
+--                    ([], Just loc) -> [ Grid.Polygon [(jsToGrid model loc)] ]
+--                    (hd::tl, Just loc) -> (Grid.addPoint (jsToGrid model loc) hd) :: tl
+--                    _ -> model.ground
+--                  else (Grid.Polygon []) :: model.ground }, Cmd.none )
   SwitchState ->
     if model.editState then
       ( { model | editState = False }, sendEditState False )
     else
       ( { model | editState = True }, sendEditState True )
+  MouseUpDown b ->
+    ( { model | mouseDown = b }, Cmd.none )
 
 
 
@@ -120,12 +152,14 @@ button_attributes = [ Attr.style "margin" "0 auto"
                     , Attr.style "margin-top" "15px" ]
 
 
+
+
 view : Model -> Html Msg
 view model =
   let
     msg = "DND Map Designer Studio Suite Lite (TM)"
     save_msg = "Right click and select \"Save Image As...\" to save!"
-    map = [draw_mouse, draw_ground, draw_grid, draw_bg]
+    map = [draw_mouse, draw_ground, draw_paths, draw_grid, draw_bg]
             |> List.map (\f -> f model)
             |> C.group
             |> R.svg
@@ -191,7 +225,12 @@ draw_ground model =
     List.map (shape_to_collage (fill_style, line_style)) model.ground |> C.group
 
 draw_paths : Model -> C.Collage Msg
-draw_paths model = Debug.todo "Draw Paths"
+draw_paths model =
+  --Debug.todo "Draw Paths"
+  let
+      line_style = C.solid C.thick (C.uniform Color.black)
+  in
+      List.map (path_to_collage line_style) model.walls |> C.group
 
 draw_mouse : Model -> C.Collage Msg
 draw_mouse model =
@@ -282,7 +321,9 @@ shape_to_collage (fill, line) shape =
       Grid.Composite outline holes ->
         C.group <| scale_and_style outline :: List.map scale_and_style holes
 
-
+path_to_collage : (C.LineStyle) -> Grid.Path -> C.Collage Msg
+path_to_collage line (Grid.Path p) =
+  (C.path (List.map gridToCol p)) |> C.traced line
 
 
 -- Adding and Removing Shapes ----------------------------------------
