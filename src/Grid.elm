@@ -33,6 +33,17 @@ roundPoint : Point -> Point
 roundPoint (x,y) =
   (toFloat <| round x, toFloat <| round y)
 
+rectOrigin : Shape -> Maybe Point
+rectOrigin s =
+  case s of
+    Polygon p ->
+      case (List.head p) of
+        Just point ->
+          if ((List.length p) == 4) then Just point
+          else Nothing
+        Nothing -> Nothing
+    Composite outside holes -> Nothing
+
 makeRectPts : Point -> Point -> Shape
 makeRectPts p1 p2 =
   let
