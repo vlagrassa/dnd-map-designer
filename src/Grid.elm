@@ -31,17 +31,29 @@ makeRectDims (x, y) width height =
 
 
 
+map : (Float -> Float, Float -> Float) -> Point -> Point
+map (f, g) = Tuple.mapBoth f g
 
-map : (Float -> Float) -> Point -> Point
-map f = Tuple.mapBoth f f
+mapBoth : (Float -> Float) -> (Float -> Float) -> Point -> Point
+mapBoth = Tuple.mapBoth
 
-map2 : (Float -> Float -> Float) -> Point -> Point -> Point
-map2 f p1 p2 =
+mapSame : (Float -> Float) -> Point -> Point
+mapSame f = Tuple.mapBoth f f
+
+map2 : (Float -> Float -> Float, Float -> Float -> Float) -> Point -> Point -> Point
+map2 (f, g) p1 p2 =
   let
     xpos = f (Tuple.first p1) (Tuple.first p2)
-    ypos = f (Tuple.second p1) (Tuple.second p2)
+    ypos = g (Tuple.second p1) (Tuple.second p2)
   in
     (xpos, ypos)
+
+mapBoth2 : (Float -> Float -> Float) -> (Float -> Float -> Float) -> Point -> Point -> Point
+mapBoth2 f g = map2 (f, g)
+
+mapSame2 : (Float -> Float -> Float) -> Point -> Point -> Point
+mapSame2 f = map2 (f, f)
+
 
 mapX : (Float -> Float) -> Point -> Point
 mapX f = Tuple.mapFirst f
@@ -50,10 +62,10 @@ mapY : (Float -> Float) -> Point -> Point
 mapY f = Tuple.mapSecond f
 
 
-mapPolygon : (Float -> Float) -> Polygon -> Polygon
-mapPolygon f = List.map (map f)
+mapPolygon : (Point -> Point) -> Polygon -> Polygon
+mapPolygon f = List.map f
 
-mapShape : (Float -> Float) -> Shape -> Shape
+mapShape : (Point -> Point) -> Shape -> Shape
 mapShape f shape =
   case shape of
     Polygon ps ->
@@ -61,21 +73,49 @@ mapShape f shape =
     Composite outline holes ->
       Composite (mapPolygon f outline) (List.map (mapPolygon f) holes)
 
-mapPath : (Float -> Float) -> Path -> Path
+mapPath : (Point -> Point) -> Path -> Path
 mapPath f path =
   case path of
-    Path ps -> Path <| List.map (map f) ps
+    Path ps -> Path <| List.map f ps
+
+
+reduce : (Float -> Float -> a) -> Point -> a
+reduce f (x, y) = f x y
+
+
+translateShape : (Float, Float) -> Shape -> Shape
+translateShape vec = mapShape (mapSame2 (+) vec)
 
 
 
 minCoords : Point -> Point -> Point
-minCoords = map2 min
+minCoords = mapSame2 min
 
 maxCoords : Point -> Point -> Point
-maxCoords = map2 max
+maxCoords = mapSame2 max
 
 dimensions : Point -> Point -> (Float, Float)
-dimensions = map2 (\i j -> abs <| i - j)
+dimensions = mapSame2 (\i j -> abs <| i - j)
+
+
+distance : Point -> Point -> Float
+distance (x1, y1) (x2, y2) = sqrt <| ((x2 - x1) ^ 2) + ((y2 - y1) ^ 2)
+
+minDistance : Point -> Point -> Point -> Point
+minDistance base p1 p2 =
+  let
+    dist1 = distance base p1
+    dist2 = distance base p2
+  in
+    if (dist1 < dist2) then p1 else p2
+
+maxDistance : Point -> Point -> Point -> Point
+maxDistance base p1 p2 =
+  let
+    dist1 = distance base p1
+    dist2 = distance base p2
+  in
+    if (dist1 > dist2) then p1 else p2
 
 
 
