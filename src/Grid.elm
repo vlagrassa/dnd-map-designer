@@ -17,6 +17,8 @@ type Path = Path (List Point)
 
 
 
+-- Making Basic Shapes -----------------------------------------------
+
 makeRectPts : Point -> Point -> Shape
 makeRectPts p1 p2 =
   let
@@ -30,6 +32,9 @@ makeRectDims (x, y) width height =
   Polygon [(x, y), (x + width, y), (x + width, y + height), (x, y + height)]
 
 
+
+
+-- Various Map Functions ---------------------------------------------
 
 map : (Float -> Float, Float -> Float) -> Point -> Point
 map (f, g) = Tuple.mapBoth f g
@@ -77,6 +82,17 @@ mapPath : (Point -> Point) -> Path -> Path
 mapPath f path =
   case path of
     Path ps -> Path <| List.map f ps
+
+
+
+
+-- Misc Basic Point and Shape Functions ------------------------------
+
+numPoints : Shape -> Int
+numPoints shape = case shape of
+  Polygon ps -> List.length ps
+  Composite outline holes ->
+    (List.length outline) + List.sum (List.map List.length holes)
 
 
 reduce : (Float -> Float -> a) -> Point -> a
@@ -135,6 +151,9 @@ pointsToLines list =
 
 
 
+
+-- Merging Shapes ----------------------------------------------------
+
 -- If two shapes overlap, return their union; if not, return Nothing
 union : Shape -> Shape -> Maybe Shape
 union a b = Nothing
@@ -150,6 +169,30 @@ complement : Shape -> Shape -> Maybe Shape
 complement a b = Nothing
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- Points & Lines ----------------------------------------------------
+
+order_points : Line -> List Point -> List Point
+order_points (p, _) = List.sortBy (distance p)
 
 
 line_intersect : (Point, Point) -> (Point, Point) -> Maybe Point
@@ -196,6 +239,45 @@ check_bounds line_1 line_2 pt =
 
 
 
+slope : Line -> Maybe Float
+slope ((p_x, p_y), (q_x, q_y)) =
+  if p_x == q_x then
+    Nothing
+  else
+    Just <| (q_y - p_y) / (q_x - p_x)
+
+isHorizontal : Line -> Bool
+isHorizontal (p, q) =
+  case slope (p, q) of
+    Nothing -> False
+    Just m -> m == 0
+
+slope_intercept : Line -> Maybe (Float, Float)
+slope_intercept ((p_x, p_y), (q_x, q_y)) =
+  if p_x == q_x then
+    Nothing
+  else
+    let
+      m = (q_y - p_y) / (q_x - p_x)
+      b = p_y - (m * p_x)
+    in
+      Just (m, b)
+
+colinear : Point -> Point -> Point -> Bool
+colinear p q r =
+  -- If any two points are equal, then two points are colinear by default
+  if p == q || q == r || p == r then
+    True
+  else
+    slope_intercept (p, q) == slope_intercept (q, r)
+
+
+pointOnLine : Point -> Line -> Maybe Point
+pointOnLine p (q, r) =
+  if colinear p q r then check_bound (q, r) p else Nothing
+
+
+
 solve_for_x : Float -> Line -> Maybe Float
 solve_for_x y ((x1, y1), (x2, y2)) =
   if (x1 == x2) then
@@ -206,6 +288,10 @@ solve_for_x y ((x1, y1), (x2, y2)) =
     in
       Just <| x1 + ((y - y1) / m)
 
+
+
+
+-- Points & Shapes ---------------------------------------------------
 
 
 point_inside_polygon : Point -> Polygon -> Bool
