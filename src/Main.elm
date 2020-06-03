@@ -75,7 +75,7 @@ initModel : Model
 initModel = 
   { mouseLocation = Nothing
   , mapHeight = 20
-  , mapWidth = 25
+  , mapWidth = 30
   , ground = [ ]
   , walls = [ ]
   , editState = True
@@ -151,7 +151,7 @@ update msg model = case msg of
                              (hd::tl, Just loc) ->
                                 case (Grid.rectOrigin hd) of
                                   Just o ->
-                                     (Grid.makeRectPts o (toGrid loc))::tl
+                                     (Grid.rach_makeRectPts o (toGrid loc))::tl
                                   Nothing ->
                                      (Grid.makeRectDims (toGrid loc) 0 0)::g
                              _ -> g

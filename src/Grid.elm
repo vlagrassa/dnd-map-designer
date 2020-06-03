@@ -54,6 +54,18 @@ makeLinePts : Point -> Point -> Path
 makeLinePts p1 p2 =
   Path [p1,p2]
 
+rach_makeRectPts : Point -> Point -> Shape
+rach_makeRectPts (x1,y1) (x2,y2) =
+  let
+    case1 = (x1>x2 && y1>y2) || (x1<x2 && y1<y2)
+  in
+    Polygon [ (x1, y1)
+            , (if case1 then (x1, y2)
+               else (max x1 x2, max y1 y2))
+            , (x2, y2)
+            , (if case1 then (x2, y1)
+               else (min x1 x2, min y1 y2)) ]
+
 makeRectPts : Point -> Point -> Shape
 makeRectPts p1 p2 =
   let
