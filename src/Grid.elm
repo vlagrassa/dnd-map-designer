@@ -161,12 +161,12 @@ union a b = Nothing
 
 
 -- If two shapes overlap, return their intersection; if not, return Nothing
-intersection : Shape -> Shape -> Maybe Shape
+intersection : Shape -> Shape -> Maybe (List Shape)
 intersection a b = Nothing
 
 
 -- If two shapes overlap, return the first minus the second; if not, return Nothing
-complement : Shape -> Shape -> Maybe Shape
+complement : Shape -> Shape -> Maybe (List Shape)
 complement a b = Nothing
 
 
@@ -243,20 +243,9 @@ intersect_polygons poly_a poly_b =
           Just shifted_a ->
             let new_shape = perform_weave shifted_a in
             new_shape :: recurse shifted_a cyc_b (remaining_sects new_shape)
+
   in
     create_intersections poly_a poly_b |> Maybe.map init_recurse
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -266,6 +255,20 @@ intersect_polygons poly_a poly_b =
 order_points : Line -> List Point -> List Point
 order_points (p, _) = List.sortBy (distance p)
 
+pointsToLines : List Point -> List (Point, Point)
+pointsToLines list =
+  --listPairsWrap
+  case list of
+    [] -> []
+    p::ps ->
+      let
+        recurse xs = case xs of
+          [] -> []
+          x :: [] -> [(x, p)]
+          x :: y :: more ->
+            (x, y) :: recurse (y :: more)
+      in
+        recurse list
 
 line_intersect : (Point, Point) -> (Point, Point) -> Maybe Point
 line_intersect line_1 line_2 =
