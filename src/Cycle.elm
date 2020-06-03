@@ -243,3 +243,60 @@ weaveMatch match_func choose_dir c_1 c_2 =
     case current c_1 of
       Nothing -> []
       Just pt -> recurse (stepForward c_1) c_2 Forward pt
+
+
+
+weaveMatchDiff : (a -> a -> Bool)
+    -> (Cycle a -> Cycle a -> Maybe Dir)
+    -> (Cycle a -> Cycle a -> Maybe Dir)
+    -> Cycle a -> Cycle a -> List a
+weaveMatchDiff match_func choose_dir_1 choose_dir_2 c_1 c_2 =
+  let
+    choose_dir b = if b then choose_dir_1 else choose_dir_2
+
+    recurse : Bool -> Cycle a -> Cycle a -> Dir -> a -> Int -> List a
+    recurse first_cycle main_cycle other_cycle dir start_pt counter =
+      if (counter == 0) then [] else
+      case main_cycle of
+        Empty -> []
+        Cycle _ n _ ->
+
+          -- Base Case - Terminate once you've found the original token
+          if n == start_pt then [n] else
+          case shiftToMatch (match_func n) other_cycle of
+
+            -- No match in the other cycle -- keep going with this one
+            Nothing -> n :: (recurse first_cycle (step dir main_cycle) other_cycle dir start_pt (counter - 1))
+
+            -- If match, then
+            Just other_cycle_shifted -> case other_cycle_shifted of
+              Empty -> Debug.todo "Not Possible"
+
+              Cycle _ _ _ ->
+                case choose_dir first_cycle main_cycle other_cycle_shifted of
+                  Nothing -> n :: (recurse first_cycle (step dir main_cycle) other_cycle dir start_pt (counter - 1))
+
+                  Just new_dir -> recurse (not first_cycle) other_cycle_shifted main_cycle new_dir start_pt (counter - 1)
+
+  in
+    case current c_1 of
+      Nothing -> []
+      Just pt -> recurse True (stepForward c_1) c_2 Forward pt 15
+
+
+
+makeWeaver : (Cycle a -> a -> Bool) -> (Cycle a -> Cycle a -> Maybe Dir)
+makeWeaver f curr other =
+  let
+    f_ = f other
+  in
+    case neighbors other of
+      Nothing -> Nothing
+      Just (prev_pt, next_pt) ->
+        if f_ prev_pt then
+          Just Backward
+        else if f_ next_pt then
+          Just Forward
+        else
+          Nothing
+

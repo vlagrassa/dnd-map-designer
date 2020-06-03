@@ -3,6 +3,7 @@ module Grid exposing (..)
 import List.Extra as ListE
 import Maybe.Extra as MaybeE
 
+import Cycle exposing (Cycle)
 
 type alias Point = (Float, Float)
 
@@ -171,8 +172,79 @@ complement a b = Nothing
 
 
 
+-- Merging Shapes Helper Functions -----------------------------------
 
 
+-- Create a new version of poly that explicitly includes all the points where it intersects
+-- with outline. If no such intersection points exist, return Nothing
+insert_intersection_points : Polygon -> Polygon -> Maybe Polygon
+insert_intersection_points poly outline =
+  let
+    (poly_lines, outline_lines) = (pointsToLines poly, pointsToLines outline)
+
+    recurse lines outline_ =
+      case lines of
+        [] -> []
+        (p,q)::rest ->
+          let
+            curr_intersects =
+              List.map (line_intersect (p,q)) outline_
+                |> MaybeE.values
+                |> order_points (p,q)
+          in
+            (p :: curr_intersects) ++ (recurse rest outline_)
+
+    new_pts = recurse poly_lines outline_lines
+
+  in
+    if (new_pts == poly) then Nothing else Just new_pts
+
+
+-- Return the two polygons with all intersection points filled in
+create_intersections : Polygon -> Polygon -> Maybe (Polygon, Polygon, List Point)
+create_intersections poly_a poly_b =
+  let
+    (a_lines, b_lines) = (pointsToLines poly_a, pointsToLines poly_b)
+
+    sects = List.map (\p -> List.map (\q -> line_intersect p q) a_lines) b_lines
+      |> List.concat
+      |> MaybeE.values
+  in
+    case sects of
+      [] -> Nothing
+      _  -> case (insert_intersection_points poly_a poly_b, insert_intersection_points poly_b poly_a) of
+        (Just new_a, Just new_b) -> Just (new_a, new_b, sects)
+        _ -> Nothing
+
+
+intersect_polygons : Polygon -> Polygon -> Maybe (List Polygon)
+intersect_polygons poly_a poly_b =
+  let
+
+    init_recurse : (Polygon, Polygon, List Point) -> List Polygon
+    init_recurse (poly_a_i, poly_b_i, sects) =
+      recurse (Cycle.fromList poly_a_i) (Cycle.fromList poly_b_i) sects
+
+    recurse : Cycle Point -> Cycle Point -> List Point -> List Polygon
+    recurse cyc_a cyc_b sects =
+      let
+        switch_func_a = Cycle.makeWeaver (\_ pt -> point_inside_polygon pt poly_a)
+        switch_func_b = Cycle.makeWeaver (\_ pt -> point_inside_polygon pt poly_b)
+
+        shift_to_intersection = Cycle.shiftToMatch (\x -> List.member x sects)
+
+        perform_weave cyc_x =
+          Cycle.weaveMatchDiff (==) switch_func_a switch_func_b cyc_x cyc_b
+
+        remaining_sects s = List.filter (\x -> not <| List.member x s) sects
+      in
+        case shift_to_intersection cyc_a of
+          Nothing -> []
+          Just shifted_a ->
+            let new_shape = perform_weave shifted_a in
+            new_shape :: recurse shifted_a cyc_b (remaining_sects new_shape)
+  in
+    create_intersections poly_a poly_b |> Maybe.map init_recurse
 
 
 
