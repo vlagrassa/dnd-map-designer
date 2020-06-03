@@ -44,6 +44,16 @@ rectOrigin s =
         Nothing -> Nothing
     Composite outside holes -> Nothing
 
+lineOrigin : Path -> Maybe Point
+lineOrigin (Path l) =
+  case l of
+    fst::_::_ -> Just fst
+    _ -> Nothing
+
+makeLinePts : Point -> Point -> Path
+makeLinePts p1 p2 =
+  Path [p1,p2]
+
 makeRectPts : Point -> Point -> Shape
 makeRectPts p1 p2 =
   let
