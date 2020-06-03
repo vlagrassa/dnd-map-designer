@@ -74,6 +74,36 @@ neighbors cyc = case cyc of
     _ -> Nothing
 
 
+removeCurrent : Cycle a -> Maybe (a, Cycle a)
+removeCurrent cyc = case cyc of
+  Empty -> Nothing
+  Cycle cba n xyz -> case xyz of
+    x::yz -> Just (n, Cycle cba x yz)
+    [] ->
+      case List.reverse cba of
+        [] -> Just (n, Empty)
+        a::bc  -> Just (n, Cycle [] a bc)
+
+insertPrev : a -> Cycle a -> Cycle a
+insertPrev k cyc = case cyc of
+  Empty -> Cycle [] k []
+  Cycle cba n xyz -> Cycle (k::cba) n xyz
+
+insertNext : a -> Cycle a -> Cycle a
+insertNext k cyc = case cyc of
+  Empty -> Cycle [] k []
+  Cycle cba n xyz -> Cycle cba n (k::xyz)
+
+insertBefore : a -> Cycle a -> Cycle a
+insertBefore k cyc = case cyc of
+  Empty -> Cycle [] k []
+  Cycle cba n xyz -> Cycle cba k (n::xyz)
+
+insertAfter : a -> Cycle a -> Cycle a
+insertAfter k cyc = case cyc of
+  Empty -> Cycle [] k []
+  Cycle cba n xyz -> Cycle (n::cba) k xyz
+
 
 -- List-like functions------------------------------------------------
 
@@ -91,15 +121,31 @@ reverse cyc = case cyc of
 
 -- Stepping through the Cycle ----------------------------------------
 
+toFirst : Cycle a -> Cycle a
+toFirst cyc = case cyc of
+  Empty -> Empty
+  Cycle cba n xyz ->
+    case List.reverse cba of
+      []    -> cyc
+      a::bc -> Cycle [] a (bc ++ [n] ++ xyz)
+
+toLast : Cycle a -> Cycle a
+toLast cyc = case cyc of
+  Empty -> Empty
+  Cycle cba n xyz ->
+    case List.reverse xyz of
+      []    -> cyc
+      z::yx -> Cycle (yx ++ [n] ++ cba) z []
+
 stepForward : Cycle a -> Cycle a
 stepForward cyc = case cyc of
   Empty -> Empty
-  Cycle [] n [] -> Cycle [] n []
-  Cycle xs n (y::ys) -> Cycle (n::xs) y ys
-  Cycle xs n [] ->
-    case List.reverse xs of
-      [] -> Debug.todo "Not possible"
-      x::xs_ -> Cycle [n] x xs_
+  Cycle []  n [] -> Cycle [] n []
+  Cycle cba n (x::yz) -> Cycle (n::cba) x yz
+  Cycle cba n [] ->
+    case List.reverse (n::cba) of
+      []     -> cyc
+      a::bcn -> Cycle [] a bcn
 
 stepBackward : Cycle a -> Cycle a
 stepBackward cyc = case cyc of
@@ -107,9 +153,9 @@ stepBackward cyc = case cyc of
   Cycle [] n [] -> Cycle [] n []
   Cycle (c::ba) n xyz -> Cycle ba c (n::xyz)
   Cycle [] n xyz ->
-    case List.reverse xyz of
-      [] -> Debug.todo "Not possible"
-      z::yx -> Cycle yx z [n]
+    case List.reverse (n::xyz) of
+      []     -> cyc
+      z::yxn -> Cycle yxn z []
 
 step : Dir -> Cycle a -> Cycle a
 step dir = case dir of
