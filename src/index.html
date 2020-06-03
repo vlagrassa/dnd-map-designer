@@ -5,7 +5,7 @@
     <meta name="author" content="Rachel Wang">
     <meta name="author" content="Vince LaGrassa">
   </head>
-  <body>
+  <body style="background-color:#444444;">
     <div id="elm-app"></div>
     
     <script src="elm-app.js"></script>
@@ -40,6 +40,7 @@
 			mysvg.addEventListener('mouseup', e=> {
 				app.ports.receiveMouseUpDown.send(false);
 		  });
+
 
 			// Draw map onto canvas item when save button is clicked
 			app.ports.sendEditState.subscribe(function(state) {
