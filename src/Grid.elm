@@ -1,5 +1,8 @@
 module Grid exposing (..)
 
+import List.Extra as ListE
+import Maybe.Extra as MaybeE
+
 
 type alias Point = (Float, Float)
 
@@ -77,7 +80,7 @@ dimensions = map2 (\i j -> abs <| i - j)
 
 
 pointsToLines : List Point -> List (Point, Point)
-pointsToLines =
+pointsToLines list =
   case list of
     [] -> []
     p::ps ->
@@ -147,15 +150,9 @@ check_bound ((p1_x, p1_y), (p2_x, p2_y)) (x, y) =
       Nothing
 
 check_bounds : (Point, Point) -> (Point, Point) -> Point -> Maybe Point
-check_bounds ((p1_x, p1_y), (p2_x, p2_y)) ((q1_x, q1_y), (q2_x, q2_y)) (x, y) =
-  let
-    (p_x_min, p_x_max) = (min p1_x p2_x, max p1_x p2_x)
-    (q_x_min, q_x_max) = (min q1_x q2_x, max q1_x q2_x)
-  in
-    if (p_x_min <= x && x <= p_x_max && q_x_min <= x && x <= q_x_max) then
-      Just (x,y)
-    else
-      Nothing
+check_bounds line_1 line_2 pt =
+  Maybe.andThen (check_bound line_2) (check_bound line_1 pt)
+
 
 
 
@@ -182,9 +179,13 @@ point_inside_polygon (x,y) poly =
       Just foo -> True
 
     intersects_horizontal line =
-      solve_for_x y line
-        |> Maybe.andThen (\n -> check_bound line (n, y))
-        |> Maybe.andThen check_x
+      if isHorizontal line then
+        check_bound line (x,y)
+          |> Maybe.map Tuple.first
+      else
+        solve_for_x y line
+          |> Maybe.andThen (\n -> check_bound line (n, y))
+          |> Maybe.andThen check_x
 
     ends_on_horizontal ((p_x, p_y), (q_x, q_y)) =
       p_y /= y && q_y == y && q_x >= x
