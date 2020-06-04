@@ -31,12 +31,12 @@ fromList list =
 toList : Cycle a -> List a
 toList cyc = case cyc of
   Empty -> []
-  Cycle cba n xyz -> (List.reverse cba) ++ [n] ++ xyz
-
-toListCurrent : Cycle a -> List a
-toListCurrent cyc = case cyc of
-  Empty -> []
   Cycle cba n xyz -> n :: xyz ++ (List.reverse cba)
+
+toListOriginal : Cycle a -> List a
+toListOriginal cyc = case cyc of
+  Empty -> []
+  Cycle cba n xyz -> (List.reverse cba) ++ [n] ++ xyz
 
 
 
@@ -80,6 +80,11 @@ neighbors cyc = case cyc of
     (Just p, Just n) -> Just (p, n)
     _ -> Nothing
 
+neighbor : Dir -> Cycle a -> Maybe a
+neighbor dir = case dir of
+  Forward  -> next
+  Backward -> prev
+
 
 removeCurrent : Cycle a -> Maybe (a, Cycle a)
 removeCurrent cyc = case cyc of
@@ -101,13 +106,13 @@ insertNext k cyc = case cyc of
   Empty -> Cycle [] k []
   Cycle cba n xyz -> Cycle cba n (k::xyz)
 
-insertBefore : a -> Cycle a -> Cycle a
-insertBefore k cyc = case cyc of
+addPrev : a -> Cycle a -> Cycle a
+addPrev k cyc = case cyc of
   Empty -> Cycle [] k []
   Cycle cba n xyz -> Cycle cba k (n::xyz)
 
-insertAfter : a -> Cycle a -> Cycle a
-insertAfter k cyc = case cyc of
+addNext : a -> Cycle a -> Cycle a
+addNext k cyc = case cyc of
   Empty -> Cycle [] k []
   Cycle cba n xyz -> Cycle (n::cba) k xyz
 
@@ -124,7 +129,7 @@ reverse cyc = case cyc of
   Empty -> Empty
   Cycle cba n xyz -> Cycle (List.reverse xyz) n (List.reverse cba)
 
-member: a -> Cycle a -> Bool
+member : a -> Cycle a -> Bool
 member t cyc = case cyc of
   Empty -> False
   Cycle cba n xyz -> t == n || List.member t cba || List.member t xyz
@@ -199,8 +204,8 @@ shiftDir dir n =
     Backward -> shift (-1 * n)
 
 
-shiftToMatch : (a -> Bool) -> Cycle a -> Maybe (Cycle a)
-shiftToMatch success cyc =
+shiftUntil : (a -> Bool) -> Cycle a -> Maybe (Cycle a)
+shiftUntil success cyc =
   case cyc of
     Empty -> Nothing
     Cycle cba n xyz ->
@@ -216,8 +221,8 @@ shiftToMatch success cyc =
       in
         MaybeE.orLazy in_right in_left |> Maybe.map (\i -> shift i cyc)
 
-shiftToMatchWhole : (Cycle a -> Bool) -> Cycle a -> Maybe (Cycle a)
-shiftToMatchWhole success cyc =
+shiftUntilWhole : (Cycle a -> Bool) -> Cycle a -> Maybe (Cycle a)
+shiftUntilWhole success cyc =
   let
     recurse cyc_ = case cyc_ of
       Empty -> if success Empty then Just Empty else Nothing
@@ -231,7 +236,7 @@ shiftToMatchWhole success cyc =
     recurse (toFirst cyc)
 
 shiftTo : a -> Cycle a -> Maybe (Cycle a)
-shiftTo a = shiftToMatch ((==) a)
+shiftTo a = shiftUntil ((==) a)
 
 
 
@@ -258,7 +263,7 @@ weaveMatch match_func decision_func init_dir c_1 c_2 =
             -- Base Case - Terminate once you've found the original token
             if n == start_pt then [] else
 
-            case shiftToMatch (match_func n) other_cycle of
+            case shiftUntil (match_func n) other_cycle of
 
               -- No match in the other cycle -- keep going with this one
               Nothing -> n :: (recurse (step last_dec.dir main_cycle) other_cycle last_dec start_pt)
@@ -301,7 +306,7 @@ weaveMatchDiff match_func decision_func_1 decision_func_2 init_dir c_1 c_2 =
 
           -- Base Case - Terminate once you've found the original token
           if n == start_pt then [] else
-          case shiftToMatch (match_func n) other_cycle of
+          case shiftUntil (match_func n) other_cycle of
 
             -- No match in the other cycle -- keep going with this one
             Nothing -> n :: (recurse first_cycle (step last_dec.dir main_cycle) other_cycle last_dec start_pt (counter - 1))

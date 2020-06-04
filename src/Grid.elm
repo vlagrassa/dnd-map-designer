@@ -221,7 +221,7 @@ trace_polygons valid_start switch_func_a switch_func_b poly_a poly_b =
       let
 
         shift_to_intersection cyc_x poly_y =
-          Cycle.shiftToMatchWhole (valid_start sects poly_y) cyc_x
+          Cycle.shiftUntilWhole (valid_start sects poly_y) cyc_x
 
         perform_weave cyc_x =
           Cycle.weaveMatchDiff (==) switch_func_a switch_func_b Cycle.Forward cyc_x cyc_b
