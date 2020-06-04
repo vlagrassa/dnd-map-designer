@@ -204,8 +204,11 @@ create_intersections poly_a poly_b =
         _ -> Nothing
 
 
-trace_polygons : Cycle.WeaveDecFunc Point -> Cycle.WeaveDecFunc Point -> Polygon -> Polygon -> Maybe (List Polygon)
-trace_polygons switch_func_a switch_func_b poly_a poly_b =
+trace_polygons : (List Point -> Polygon -> Cycle Point -> Bool)
+              -> Cycle.WeaveDecFunc Point -> Cycle.WeaveDecFunc Point
+              -> Polygon -> Polygon
+              -> Maybe (List Polygon)
+trace_polygons valid_start switch_func_a switch_func_b poly_a poly_b =
   let
 
     init_recurse : (Polygon, Polygon, List Point) -> List Polygon
@@ -217,19 +220,14 @@ trace_polygons switch_func_a switch_func_b poly_a poly_b =
       if sects == [] then [] else
       let
 
-        shift_to_intersection cyc_x poly_y = Cycle.shiftToMatchWhole (\cyc ->
-          case (Cycle.current cyc, Cycle.prev cyc) of
-            --Nothing  -> False
-            (Just curr, Just prv) ->
-              List.member curr sects && not (point_inside_polygon prv poly_y)
-            _ -> False
-          )
-          cyc_x
+        shift_to_intersection cyc_x poly_y =
+          Cycle.shiftToMatchWhole (valid_start sects poly_y) cyc_x
 
         perform_weave cyc_x =
           Cycle.weaveMatchDiff (==) switch_func_a switch_func_b Cycle.Forward cyc_x cyc_b
 
         remaining_sects s = List.filter (\x -> not <| List.member x s) sects
+
       in
         case shift_to_intersection cyc_a poly_b of
           Nothing -> []
@@ -273,9 +271,15 @@ trace_polygons_maker poly_a poly_b =
       else
         Nothing
 
-    valid_start = Nothing
+    valid_start : List Point -> Polygon -> Cycle Point -> Bool
+    valid_start sects poly cyc =
+      case (Cycle.current cyc, Cycle.prev cyc) of
+        (Just curr, Just prv) ->
+          List.member curr sects && not (point_inside_polygon prv poly)
+        _ -> False
+
   in
-    trace_polygons switch_a switch_b poly_a poly_b
+    trace_polygons valid_start switch_a switch_b poly_a poly_b
 
 
 
