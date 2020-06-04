@@ -12,6 +12,59 @@ type Shape
 type Path = Path (List Point)
 
 
+addPointToShape : Point -> Shape -> Shape
+addPointToShape point s =
+  case s of
+    Polygon p -> point::p |> Polygon
+    Composite outside holes -> s
+
+
+addPointPath : Point -> Path -> Path
+addPointPath point (Path p) =
+  Path (point :: p)
+
+
+pathToShape : Path -> Shape
+pathToShape (Path p) =
+  Polygon p
+
+
+roundPoint : Point -> Point
+roundPoint (x,y) =
+  (toFloat <| round x, toFloat <| round y)
+
+rectOrigin : Shape -> Maybe Point
+rectOrigin s =
+  case s of
+    Polygon p ->
+      case (List.head p) of
+        Just point ->
+          if ((List.length p) == 4) then Just point
+          else Nothing
+        Nothing -> Nothing
+    Composite outside holes -> Nothing
+
+lineOrigin : Path -> Maybe Point
+lineOrigin (Path l) =
+  case l of
+    fst::_::_ -> Just fst
+    _ -> Nothing
+
+makeLinePts : Point -> Point -> Path
+makeLinePts p1 p2 =
+  Path [p1,p2]
+
+rach_makeRectPts : Point -> Point -> Shape
+rach_makeRectPts (x1,y1) (x2,y2) =
+  let
+    case1 = (x1>x2 && y1>y2) || (x1<x2 && y1<y2)
+  in
+    Polygon [ (x1, y1)
+            , (if case1 then (x1, y2)
+               else (max x1 x2, max y1 y2))
+            , (x2, y2)
+            , (if case1 then (x2, y1)
+               else (min x1 x2, min y1 y2)) ]
 
 makeRectPts : Point -> Point -> Shape
 makeRectPts p1 p2 =

@@ -10,17 +10,14 @@ import Html.Events exposing (..)
 import String exposing (fromInt, fromFloat, repeat)
 import Debug
 
---import Svg exposing (Svg)
---import Svg.Attributes exposing (..)
-
-import Json.Decode as D
 import Collage as C
+import Collage.Layout as L
 import Collage.Events as E
 import Collage.Render as R
 import Color exposing (Color)
 
 import Grid
-
+import Tool
 
 -- Main Stuff --------------------------------------------------------
 
@@ -40,15 +37,18 @@ type alias Model =
   , ground : List Grid.Shape
   , walls  : List Grid.Path
   , editState : Bool
+  , mouseDown : Bool
+  , tool : Tool.Tool
   }
 
 type alias Coordinate = { x:Int, y:Int }
-
 
 type Msg
   = NullMsg
   | MouseMove (Maybe Coordinate)
   | SwitchState
+  | MouseUpDown Bool
+  | SwitchTool Tool.Tool
 
 type alias Flags = ()
 
@@ -58,6 +58,8 @@ type alias Flags = ()
 -- Ports -------------------------------------------------------------
 
 port receiveMouseMove : ((Maybe Coordinate) -> msg) -> Sub msg
+
+port receiveMouseUpDown : (Bool -> msg) -> Sub msg
 
 port sendEditState : Bool -> Cmd msg
 
@@ -73,10 +75,12 @@ initModel : Model
 initModel = 
   { mouseLocation = Nothing
   , mapHeight = 20
-  , mapWidth = 20
-  , ground = []
-  , walls = []
+  , mapWidth = 30
+  , ground = [ ]
+  , walls = [ ]
   , editState = True
+  , mouseDown = False
+  , tool = Tool.FreeformPen
   }
 
 
@@ -85,20 +89,111 @@ initModel =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-  receiveMouseMove MouseMove
+  Sub.batch
+    [ receiveMouseMove MouseMove
+    , receiveMouseUpDown MouseUpDown]
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model = case msg of
   NullMsg ->
     (model, Cmd.none)
+
+  -- MouseMove handles updating mouseLocation and all drawing
   MouseMove coord ->
-    ( { model | mouseLocation = coord }, Cmd.none )
+    let
+      toGrid = case model.tool of
+                 Tool.FreeformAutofill -> jsToGrid model
+                 Tool.FreeformPen -> jsToGrid model
+                 _ -> jsToGridLocked model
+      ml = model.mouseLocation
+      ws = model.walls
+      g = model.ground
+      t = model.tool
+    in
+      ( { model | mouseLocation = coord
+
+                , walls = -- update walls for drawing paths and incomplete shapes
+                   case t of
+
+                    Tool.Line ->
+                      if model.mouseDown
+                      then case (ws, ml) of
+                        ([], Just loc) ->
+                          [ Grid.makeLinePts (toGrid loc) (toGrid loc) ]
+                        (hd::tl, Just loc) ->
+                          case (Grid.lineOrigin hd) of
+                            Just o ->
+                              (Grid.makeLinePts o (toGrid loc))::tl
+                            Nothing ->
+                              (Grid.makeLinePts (toGrid loc) (toGrid loc))::ws
+                        _ -> ws
+                      else ws
+
+                    Tool.Rectangle -> ws
+
+                    _ -> if model.mouseDown
+                         then case (ws, ml) of
+                               ([], Just loc) ->
+                                  [ Grid.Path [(toGrid loc)] ]
+                               (hd::tl, Just loc) ->
+                                  (Grid.addPointPath (toGrid loc) hd)::tl
+                               _ -> ws
+                         else ws
+
+                , ground = -- update ground for drawing rectangles
+                   case t of
+                    Tool.Rectangle ->
+                      if model.mouseDown
+                      then case (g, ml) of
+                             ([], Just loc) ->
+                                [Grid.makeRectDims (toGrid loc) 0 0]
+                             (hd::tl, Just loc) ->
+                                case (Grid.rectOrigin hd) of
+                                  Just o ->
+                                     (Grid.rach_makeRectPts o (toGrid loc))::tl
+                                  Nothing ->
+                                     (Grid.makeRectDims (toGrid loc) 0 0)::g
+                             _ -> g
+                      else g
+                    _ -> g }, Cmd.none )
+
+  -- SwitchState handles switching between edit mode and save image mode
   SwitchState ->
     if model.editState then
       ( { model | editState = False }, sendEditState False )
     else
       ( { model | editState = True }, sendEditState True )
+
+  -- MouseUpDown handles finishing shapes
+  MouseUpDown b ->
+    let
+      autofill = 
+        ( { model | mouseDown = b
+                  -- take the unfinished shape from beginning of walls
+                  -- and completes it and adds it to ground and remove
+                  -- it from walls; also add empty shape to walls
+                  , ground = case model.walls of
+                              [] -> model.ground
+                              hd::tl -> (Grid.pathToShape hd) :: model.ground
+                  , walls = case model.walls of
+                              [] -> model.walls
+                              hd::tl -> (Grid.Path []) :: tl }, Cmd.none )
+     in
+       -- only complete unfinished shape if mouseup, add an empty shape to
+       -- ground for rectangle tool and walls for pen tools
+       case (model.tool,b) of
+         (Tool.LockedAutofill, False) -> autofill
+         (Tool.FreeformAutofill, False) -> autofill
+         (Tool.Rectangle, False) ->
+              ( { model | mouseDown = b
+                        , ground = (Grid.Polygon []) :: model.ground }, Cmd.none )
+         (_, False) -> ( { model | mouseDown = b
+                                 , walls = (Grid.Path []) :: model.walls }, Cmd.none )
+         _ -> ( { model | mouseDown = b }, Cmd.none )
+  
+  -- SwitchTool handles switching between tools
+  SwitchTool t -> ( { model | tool = t }, Cmd.none )
 
 
 
@@ -123,15 +218,25 @@ button_attributes = [ Attr.style "margin" "0 auto"
 view : Model -> Html Msg
 view model =
   let
-    msg = "DND Map Designer Studio Suite Lite (TM)"
+    msg = "DND Map Designer Studio Suite Lite"
     save_msg = "Right click and select \"Save Image As...\" to save!"
-    map = [draw_mouse, draw_ground, draw_grid, draw_bg]
+    map = [draw_mouse, draw_paths, draw_ground, draw_grid, draw_bg]
             |> List.map (\f -> f model)
             |> C.group
             |> R.svg
   in
-    Html.div [] (
-        [ Html.h3 [ Attr.align "center", Attr.style "margin" "15px" ] [ Html.text msg ]
+    Html.div []
+        [ Html.h3 [ Attr.align "center"
+                  , Attr.style "margin" "15px"
+                  , Attr.style "font" "25px Optima, sans-serif"
+                  , Attr.style "color" "#F7F9F9" ]
+                  [ Html.text msg, Html.sup [ ] [ Html.text "TM"] ]
+        , Html.div [ onInput (\s -> case Tool.toTool s of
+                                      Just t -> SwitchTool t
+                                      Nothing -> SwitchTool Tool.FreeformPen)
+                   , Attr.align "center"
+                   , Attr.style "margin-bottom" "15px" ]
+                   (if model.editState then [ Html.select [] Tool.toolOptions ] else [])
         , Html.div [ Attr.align "center"
                    , Attr.id "map_canvas_container"
                    , Attr.style "display" (if model.editState then "block" else "none") ]
@@ -141,15 +246,9 @@ view model =
                 ++ (canvas_attributes model) ) [ ]
         , Html.button ( (onClick SwitchState) :: button_attributes )
                       [ Html.text (if model.editState then "Save" else "Edit") ]
-        ] ++ (
-          if model.editState then []
-          else
-            [ Html.div [ Attr.align "center"
-                       , Attr.style "margin-top" "15px"
-                       , Attr.style "font-family" "Comic Sans MS" ]
-                       -- dude im a graphic design genius
-                       [ Html.text save_msg ] ]))
-
+        , Html.div [ Attr.align "center"
+                   , Attr.style "margin-top" "15px" ]
+                   (if model.editState then [] else [ Html.text save_msg ]) ]
 
 
 -- Drawing Map Objects -----------------------------------------------
@@ -159,6 +258,7 @@ draw_bg model =
   let
     width  = scaleGridToCol_i (model.mapWidth  + 2)
     height = scaleGridToCol_i (model.mapHeight + 2)
+    green = Color.rgba 0.16 0.49 0.02 0.5 
   in
   C.rectangle width height
     |> C.filled (C.uniform Color.lightGrey)
@@ -169,7 +269,7 @@ draw_grid model =
   let
     scale = scaleGridToCol_i
 
-    grid_style = C.traced (C.solid C.thin (C.uniform Color.darkGray))
+    grid_style = C.traced (C.solid C.thin (C.uniform Color.gray))
 
     h_grid_lines = (List.range 0 model.mapHeight)
       |> List.map (\y -> C.segment (0, scale y) (scale model.mapWidth, scale y))
@@ -191,7 +291,14 @@ draw_ground model =
     List.map (shape_to_collage (fill_style, line_style)) model.ground |> C.group
 
 draw_paths : Model -> C.Collage Msg
-draw_paths model = Debug.todo "Draw Paths"
+draw_paths model =
+  let
+      line_style = C.solid C.thick (C.uniform Color.black)
+      col = Color.rgb255 135 130 124
+      testlineStyle = (\t -> C.broken [ (5*t,t), (9*t,t), (4*t,t),(6*t,t) ] ((toFloat t)*2.2) (C.uniform col))
+      style = C.solid C.verythick (C.uniform Color.darkBrown)
+  in
+      List.map (path_to_collage line_style) model.walls |> C.group
 
 draw_mouse : Model -> C.Collage Msg
 draw_mouse model =
@@ -199,10 +306,40 @@ draw_mouse model =
     Nothing -> C.filled C.transparent (C.circle 0)
     Just loc ->
       C.circle 10
-        |> C.filled (C.uniform Color.red)
+        |> C.filled (C.uniform (Color.rgba 255 0 0 0.6))
         |> C.shift (jsToCol model loc)
 
 
+draw_menu : Model -> C.Collage Msg
+draw_menu model =
+  let
+      width  = scaleGridToCol_i (model.mapWidth - 2)
+      
+      -- fill and line styles
+      outline = C.solid C.ultrathin (C.uniform Color.gray)
+      inline = C.solid C.thin (C.uniform Color.black)
+      grayfill = C.styled (C.uniform (Color.lightGray), inline)
+      blackfill = C.filled (C.uniform (Color.black))
+      bgfill = C.styled (C.uniform (Color.lightGray), outline)
+      
+      -- menu "buttons"; these are really ugly and need to be updated
+      -- but they were convenient to make and they'll do for now
+      lock_auto = C.square 14 |> grayfill |> C.shiftX 25
+                     |> E.onClick (SwitchTool Tool.LockedAutofill)
+      free_auto = C.roundedSquare 15 4 |> grayfill |> C.shiftX 50
+                     |> E.onClick (SwitchTool Tool.FreeformAutofill)
+      lock_pen  = C.square 14 |> blackfill |> C.shiftX 75
+                     |> E.onClick (SwitchTool Tool.LockedPen)
+      free_pen  = C.circle 7 |> blackfill |> C.shiftX 100
+                     |> E.onClick (SwitchTool Tool.FreeformPen)
+      rect_tool = C.rectangle 20 14 |> grayfill |> C.shiftX 130
+                     |> E.onClick (SwitchTool Tool.Rectangle)
+      
+      -- menu shape
+      menu_bg = C.rectangle width 50 |> bgfill
+  in
+      List.foldr (\x -> L.at L.left x) menu_bg
+                 [lock_auto,free_auto,lock_pen,free_pen,rect_tool]
 
 
 -- Converting Between Coordinate Systems -----------------------------
@@ -264,6 +401,9 @@ jsToGrid : Model -> Coordinate -> Grid.Point
 jsToGrid model coord = colToGrid <| jsToCol model coord
 
 
+jsToGridLocked : Model -> Coordinate -> Grid.Point
+jsToGridLocked model coord =
+  Grid.roundPoint <| colToGrid <| jsToCol model coord
 
 
 -- Converting Shapes to Collage Elements -----------------------------
@@ -282,8 +422,9 @@ shape_to_collage (fill, line) shape =
       Grid.Composite outline holes ->
         C.group <| scale_and_style outline :: List.map scale_and_style holes
 
-
-
+path_to_collage : (C.LineStyle) -> Grid.Path -> C.Collage Msg
+path_to_collage line (Grid.Path p) =
+  (C.path (List.map gridToCol p)) |> C.traced line
 
 -- Adding and Removing Shapes ----------------------------------------
 
