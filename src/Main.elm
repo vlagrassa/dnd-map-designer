@@ -49,6 +49,7 @@ type Msg
   | SwitchState
   | MouseUpDown Bool
   | SwitchTool Tool.Tool
+  | ClearBoard
 
 type alias Flags = ()
 
@@ -75,7 +76,7 @@ initModel : Model
 initModel = 
   { mouseLocation = Nothing
   , mapHeight = 20
-  , mapWidth = 30
+  , mapWidth = 25
   , ground = [ ]
   , walls = [ ]
   , editState = True
@@ -195,6 +196,8 @@ update msg model = case msg of
   -- SwitchTool handles switching between tools
   SwitchTool t -> ( { model | tool = t }, Cmd.none )
 
+  ClearBoard -> ( { model | ground = [], walls = [] }, Cmd.none )
+
 
 
 
@@ -219,11 +222,13 @@ view : Model -> Html Msg
 view model =
   let
     msg = "DND Map Designer Studio Suite Lite"
-    save_msg = "Right click and select \"Save Image As...\" to save!"
+    save_msg = "Right click and select \"Save Image As...\" to save"
     map = [draw_mouse, draw_paths, draw_ground, draw_grid, draw_bg]
             |> List.map (\f -> f model)
             |> C.group
             |> R.svg
+    clear = Html.button [ onClick ClearBoard, Attr.style "margin-left" "5px" ] [ Html.text "Clear" ]
+    tools = Html.select [ Attr.style "margin-right" "5px" ] Tool.toolOptions
   in
     Html.div []
         [ Html.h3 [ Attr.align "center"
@@ -236,7 +241,7 @@ view model =
                                       Nothing -> SwitchTool Tool.FreeformPen)
                    , Attr.align "center"
                    , Attr.style "margin-bottom" "15px" ]
-                   (if model.editState then [ Html.select [] Tool.toolOptions ] else [])
+                   (if model.editState then [ tools, clear ] else [])
         , Html.div [ Attr.align "center"
                    , Attr.id "map_canvas_container"
                    , Attr.style "display" (if model.editState then "block" else "none") ]
@@ -247,7 +252,9 @@ view model =
         , Html.button ( (onClick SwitchState) :: button_attributes )
                       [ Html.text (if model.editState then "Save" else "Edit") ]
         , Html.div [ Attr.align "center"
-                   , Attr.style "margin-top" "15px" ]
+                   , Attr.style "margin-top" "15px"
+                   , Attr.style "color" "#F7F9F9"
+                   , Attr.style "font-family" "Optima, sans-serif" ]
                    (if model.editState then [] else [ Html.text save_msg ]) ]
 
 
