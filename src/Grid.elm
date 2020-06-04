@@ -136,19 +136,6 @@ maxDistance base p1 p2 =
 
 
 
-pointsToLines : List Point -> List (Point, Point)
-pointsToLines list =
-  case list of
-    [] -> []
-    p::ps ->
-      let
-        recurse xs = case xs of
-          [] -> []
-          x :: [] -> [(x, p)]
-          x :: y :: more ->
-            (x, y) :: recurse (y :: more)
-      in
-        recurse list
 
 
 
