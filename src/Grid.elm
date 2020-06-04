@@ -17,6 +17,10 @@ type Shape
 type Path = Path (List Point)
 
 
+type Direction
+  = Clockwise
+  | Widdershins
+
 
 -- Making Basic Shapes -----------------------------------------------
 
@@ -136,6 +140,32 @@ maxDistance base p1 p2 =
 
 
 
+direction : Polygon -> Direction
+direction poly =
+  let
+    lines = pointsToLines poly
+    line_val (p,q) = reduce (*) <| mapBoth2 (+) (-) q p
+    total_val = List.sum <| List.map line_val lines
+  in
+    if total_val < 0 then Widdershins else Clockwise
+
+reverse : Polygon -> Polygon
+reverse = List.reverse
+
+
+set_direction : Direction -> Polygon -> Polygon
+set_direction dir poly =
+  if dir == direction poly then
+    poly
+  else
+    reverse poly
+
+opposite_dir : Direction -> Direction
+opposite_dir dir = case dir of
+  Clockwise -> Widdershins
+  Widdershins -> Clockwise
+
+
 
 
 
@@ -204,11 +234,11 @@ create_intersections poly_a poly_b =
         _ -> Nothing
 
 
-trace_polygons : (List Point -> Polygon -> Cycle Point -> Bool)
+trace_polygons : Cycle.Dir -> (List Point -> Polygon -> Cycle Point -> Bool)
               -> Cycle.WeaveDecFunc Point -> Cycle.WeaveDecFunc Point
               -> Polygon -> Polygon
               -> Maybe (List Polygon)
-trace_polygons valid_start switch_func_a switch_func_b poly_a poly_b =
+trace_polygons initial_d valid_start switch_func_a switch_func_b poly_a poly_b =
   let
 
     init_recurse : (Polygon, Polygon, List Point) -> List Polygon
@@ -224,7 +254,7 @@ trace_polygons valid_start switch_func_a switch_func_b poly_a poly_b =
           Cycle.shiftUntilWhole (valid_start sects poly_y) cyc_x
 
         perform_weave cyc_x =
-          Cycle.weaveMatchDiff (==) switch_func_a switch_func_b Cycle.Forward cyc_x cyc_b
+          Cycle.weaveMatchDiff (==) switch_func_a switch_func_b initial_d cyc_x cyc_b
 
         remaining_sects s = List.filter (\x -> not <| List.member x s) sects
 
@@ -242,10 +272,8 @@ trace_polygons valid_start switch_func_a switch_func_b poly_a poly_b =
 
 -- Turns out, this bad boy will do union, intersection, and either complement depending on
 -- the direction (clockwise/anticlockwise) of both shapes
--- Technically you also have to switch the order it checks Backward and Forward for some of
--- them (as well as the starting direction), otherwise it breaks the stack. Oops.
-trace_polygons_maker : Polygon -> Polygon -> Maybe (List Polygon)
-trace_polygons_maker poly_a poly_b =
+trace_polygons_maker : Cycle.Dir -> Polygon -> Polygon -> Maybe (List Polygon)
+trace_polygons_maker initial_d poly_a poly_b =
   let
 
     mb_point_inside_a = MaybeE.unwrap False (\pt -> point_inside_polygon pt poly_a)
@@ -253,21 +281,27 @@ trace_polygons_maker poly_a poly_b =
 
     switch_a : Cycle.WeaveDecFunc Point
     switch_a _ cyc_a cyc_b _ =
-      if mb_point_inside_b (Cycle.next cyc_a) then
+      if initial_d == Cycle.Forward && mb_point_inside_b (Cycle.next cyc_a) then
         Just {dir = Cycle.Forward, switch = True}
       else
       if mb_point_inside_b (Cycle.prev cyc_a) then
         Just {dir = Cycle.Backward, switch = True}
       else
+      if mb_point_inside_b (Cycle.next cyc_a) then
+        Just {dir = Cycle.Forward, switch = True}
+      else
         Nothing
 
     switch_b : Cycle.WeaveDecFunc Point
     switch_b _ cyc_a cyc_b _ =
-      if mb_point_inside_a (Cycle.next cyc_b) then
+      if initial_d == Cycle.Forward && mb_point_inside_a (Cycle.next cyc_b) then
         Just {dir = Cycle.Forward, switch = True}
       else
       if mb_point_inside_a (Cycle.prev cyc_b) then
         Just {dir = Cycle.Backward, switch = True}
+      else
+      if mb_point_inside_a (Cycle.next cyc_b) then
+        Just {dir = Cycle.Forward, switch = True}
       else
         Nothing
 
@@ -279,7 +313,36 @@ trace_polygons_maker poly_a poly_b =
         _ -> False
 
   in
-    trace_polygons valid_start switch_a switch_b poly_a poly_b
+    trace_polygons initial_d valid_start switch_a switch_b poly_a poly_b
+
+
+
+union_polygons : Polygon -> Polygon -> Maybe (List Polygon)
+union_polygons poly_a poly_b =
+  let
+    corrected_b = set_direction (direction poly_a) poly_b
+  in
+    trace_polygons_maker Cycle.Backward poly_a corrected_b
+
+intersect_polygons : Polygon -> Polygon -> Maybe (List Polygon)
+intersect_polygons poly_a poly_b =
+  let
+    corrected_b = set_direction (opposite_dir <| direction poly_a) poly_b
+  in
+    trace_polygons_maker Cycle.Forward poly_a corrected_b
+
+complement_polygons : Polygon -> Polygon -> Maybe (List Polygon)
+complement_polygons poly_a poly_b =
+  let
+    (dir_a, dir_b) = (direction poly_a, direction poly_b)
+  in
+    if (dir_a == dir_b) then
+      trace_polygons_maker Cycle.Forward  poly_a poly_b
+    else
+      trace_polygons_maker Cycle.Backward poly_b poly_a
+
+
+
 
 
 
