@@ -204,8 +204,8 @@ create_intersections poly_a poly_b =
         _ -> Nothing
 
 
-intersect_polygons : Polygon -> Polygon -> Maybe (List Polygon)
-intersect_polygons poly_a poly_b =
+trace_polygons : Cycle.WeaveDecFunc Point -> Cycle.WeaveDecFunc Point -> Polygon -> Polygon -> Maybe (List Polygon)
+trace_polygons switch_func_a switch_func_b poly_a poly_b =
   let
 
     init_recurse : (Polygon, Polygon, List Point) -> List Polygon
@@ -214,18 +214,24 @@ intersect_polygons poly_a poly_b =
 
     recurse : Cycle Point -> Cycle Point -> List Point -> List Polygon
     recurse cyc_a cyc_b sects =
+      if sects == [] then [] else
       let
-        switch_func_a = Cycle.makeWeaver (\_ pt -> point_inside_polygon pt poly_a)
-        switch_func_b = Cycle.makeWeaver (\_ pt -> point_inside_polygon pt poly_b)
 
-        shift_to_intersection = Cycle.shiftToMatch (\x -> List.member x sects)
+        shift_to_intersection cyc_x poly_y = Cycle.shiftToMatchWhole (\cyc ->
+          case (Cycle.current cyc, Cycle.prev cyc) of
+            --Nothing  -> False
+            (Just curr, Just prv) ->
+              List.member curr sects && not (point_inside_polygon prv poly_y)
+            _ -> False
+          )
+          cyc_x
 
         perform_weave cyc_x =
-          Cycle.weaveMatchDiff (==) switch_func_a switch_func_b cyc_x cyc_b
+          Cycle.weaveMatchDiff (==) switch_func_a switch_func_b Cycle.Forward cyc_x cyc_b
 
         remaining_sects s = List.filter (\x -> not <| List.member x s) sects
       in
-        case shift_to_intersection cyc_a of
+        case shift_to_intersection cyc_a poly_b of
           Nothing -> []
           Just shifted_a ->
             let new_shape = perform_weave shifted_a in
@@ -233,6 +239,43 @@ intersect_polygons poly_a poly_b =
 
   in
     create_intersections poly_a poly_b |> Maybe.map init_recurse
+
+
+
+-- Turns out, this bad boy will do union, intersection, and either complement depending on
+-- the direction (clockwise/anticlockwise) of both shapes
+-- Technically you also have to switch the order it checks Backward and Forward for some of
+-- them (as well as the starting direction), otherwise it breaks the stack. Oops.
+trace_polygons_maker : Polygon -> Polygon -> Maybe (List Polygon)
+trace_polygons_maker poly_a poly_b =
+  let
+
+    mb_point_inside_a = MaybeE.unwrap False (\pt -> point_inside_polygon pt poly_a)
+    mb_point_inside_b = MaybeE.unwrap False (\pt -> point_inside_polygon pt poly_b)
+
+    switch_a : Cycle.WeaveDecFunc Point
+    switch_a _ cyc_a cyc_b _ =
+      if mb_point_inside_b (Cycle.next cyc_a) then
+        Just {dir = Cycle.Forward, switch = True}
+      else
+      if mb_point_inside_b (Cycle.prev cyc_a) then
+        Just {dir = Cycle.Backward, switch = True}
+      else
+        Nothing
+
+    switch_b : Cycle.WeaveDecFunc Point
+    switch_b _ cyc_a cyc_b _ =
+      if mb_point_inside_a (Cycle.next cyc_b) then
+        Just {dir = Cycle.Forward, switch = True}
+      else
+      if mb_point_inside_a (Cycle.prev cyc_b) then
+        Just {dir = Cycle.Backward, switch = True}
+      else
+        Nothing
+
+    valid_start = Nothing
+  in
+    trace_polygons switch_a switch_b poly_a poly_b
 
 
 

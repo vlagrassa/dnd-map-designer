@@ -11,6 +11,13 @@ type Cycle a
 
 type Dir = Forward | Backward
 
+type alias WeaveDecFunc a = a -> Cycle a -> Cycle a -> WeaveDec -> Maybe WeaveDec
+
+type alias WeaveDec =
+  { dir : Dir
+  , switch : Bool
+  }
+
 
 
 -- Converting To/From Lists ------------------------------------------
@@ -117,6 +124,11 @@ reverse cyc = case cyc of
   Empty -> Empty
   Cycle cba n xyz -> Cycle (List.reverse xyz) n (List.reverse cba)
 
+member: a -> Cycle a -> Bool
+member t cyc = case cyc of
+  Empty -> False
+  Cycle cba n xyz -> t == n || List.member t cba || List.member t xyz
+
 
 
 -- Stepping through the Cycle ----------------------------------------
@@ -204,6 +216,20 @@ shiftToMatch success cyc =
       in
         MaybeE.orLazy in_right in_left |> Maybe.map (\i -> shift i cyc)
 
+shiftToMatchWhole : (Cycle a -> Bool) -> Cycle a -> Maybe (Cycle a)
+shiftToMatchWhole success cyc =
+  let
+    recurse cyc_ = case cyc_ of
+      Empty -> if success Empty then Just Empty else Nothing
+      Cycle _ _ xyz ->
+        if success cyc_ then Just cyc_ else case xyz of
+          [] -> Nothing
+          _  -> recurse (stepForward cyc_)
+      --Cycle _ _ [] -> if success cyc_ then Just cyc_ else Nothing
+      --Cycle _ _ _  -> if success cyc_ then Just cyc_ else recurse (stepForward cyc_)
+  in
+    recurse (toFirst cyc)
+
 shiftTo : a -> Cycle a -> Maybe (Cycle a)
 shiftTo a = shiftToMatch ((==) a)
 
@@ -211,77 +237,95 @@ shiftTo a = shiftToMatch ((==) a)
 
 -- Weaving -----------------------------------------------------------
 
-weave : (Cycle a -> Cycle a -> Maybe Dir) -> Cycle a -> Cycle a -> List a
+weave : WeaveDecFunc a -> Dir -> Cycle a -> Cycle a -> List a
 weave = weaveMatch (==)
 
-weaveMatch : (a -> a -> Bool) -> (Cycle a -> Cycle a -> Maybe Dir) -> Cycle a -> Cycle a -> List a
-weaveMatch match_func choose_dir c_1 c_2 =
+weaveMatch : (a -> a -> Bool) -> WeaveDecFunc a -> Dir -> Cycle a -> Cycle a -> List a
+weaveMatch match_func decision_func init_dir c_1 c_2 =
   let
-    recurse main_cycle other_cycle dir start_pt =
+
+    recurse : Cycle a -> Cycle a -> WeaveDec -> a -> List a
+    recurse main_cycle other_cycle last_dec start_pt =
+      --if (counter == 0) then [] else
+      --case dec of
+      --  Nothing -> []
+      --  Just d  ->
+
+        case main_cycle of
+          Empty -> []
+          Cycle _ n _ ->
+
+            -- Base Case - Terminate once you've found the original token
+            if n == start_pt then [] else
+
+            case shiftToMatch (match_func n) other_cycle of
+
+              -- No match in the other cycle -- keep going with this one
+              Nothing -> n :: (recurse (step last_dec.dir main_cycle) other_cycle last_dec start_pt)
+
+              -- If match, then
+              Just other_cycle_shifted -> case other_cycle_shifted of
+                Empty -> Debug.todo "Not Possible"
+
+                Cycle _ _ _ ->
+                  case decision_func n main_cycle other_cycle_shifted last_dec of
+                    Nothing -> []
+                    --Nothing -> n :: (recurse (step dir main_cycle) other_cycle dir start_pt)
+
+                    Just new_dec ->
+                      if new_dec.switch then
+                        n :: (recurse (step new_dec.dir other_cycle_shifted) main_cycle new_dec start_pt)
+                      else
+                        n :: (recurse (step new_dec.dir main_cycle) other_cycle_shifted new_dec start_pt)
+
+  in
+    case current c_1 of
+      Nothing -> []
+      Just pt -> pt :: (recurse (step init_dir c_1) c_2 {dir=init_dir, switch=True} pt)
+        --[pt]
+
+
+
+
+weaveMatchDiff : (a -> a -> Bool) -> WeaveDecFunc a -> WeaveDecFunc a -> Dir -> Cycle a -> Cycle a -> List a
+weaveMatchDiff match_func decision_func_1 decision_func_2 init_dir c_1 c_2 =
+  let
+    decision_func b = if b then decision_func_1 else decision_func_2
+
+    recurse : Bool -> Cycle a -> Cycle a -> WeaveDec -> a -> Int -> List a
+    recurse first_cycle main_cycle other_cycle last_dec start_pt counter =
+      --if (counter == 0) then [] else
       case main_cycle of
         Empty -> []
         Cycle _ n _ ->
 
           -- Base Case - Terminate once you've found the original token
-          if n == start_pt then [n] else
+          if n == start_pt then [] else
           case shiftToMatch (match_func n) other_cycle of
 
             -- No match in the other cycle -- keep going with this one
-            Nothing -> n :: (recurse (step dir main_cycle) other_cycle dir start_pt)
+            Nothing -> n :: (recurse first_cycle (step last_dec.dir main_cycle) other_cycle last_dec start_pt (counter - 1))
 
             -- If match, then
             Just other_cycle_shifted -> case other_cycle_shifted of
               Empty -> Debug.todo "Not Possible"
 
               Cycle _ _ _ ->
-                case choose_dir main_cycle other_cycle_shifted of
-                  Nothing -> n :: (recurse (step dir main_cycle) other_cycle dir start_pt)
+                case decision_func first_cycle n main_cycle other_cycle_shifted last_dec of
+                  Nothing -> []
 
-                  Just new_dir -> recurse other_cycle_shifted main_cycle new_dir start_pt
-
-  in
-    case current c_1 of
-      Nothing -> []
-      Just pt -> recurse (stepForward c_1) c_2 Forward pt
-
-
-
-weaveMatchDiff : (a -> a -> Bool)
-    -> (Cycle a -> Cycle a -> Maybe Dir)
-    -> (Cycle a -> Cycle a -> Maybe Dir)
-    -> Cycle a -> Cycle a -> List a
-weaveMatchDiff match_func choose_dir_1 choose_dir_2 c_1 c_2 =
-  let
-    choose_dir b = if b then choose_dir_1 else choose_dir_2
-
-    recurse : Bool -> Cycle a -> Cycle a -> Dir -> a -> Int -> List a
-    recurse first_cycle main_cycle other_cycle dir start_pt counter =
-      if (counter == 0) then [] else
-      case main_cycle of
-        Empty -> []
-        Cycle _ n _ ->
-
-          -- Base Case - Terminate once you've found the original token
-          if n == start_pt then [n] else
-          case shiftToMatch (match_func n) other_cycle of
-
-            -- No match in the other cycle -- keep going with this one
-            Nothing -> n :: (recurse first_cycle (step dir main_cycle) other_cycle dir start_pt (counter - 1))
-
-            -- If match, then
-            Just other_cycle_shifted -> case other_cycle_shifted of
-              Empty -> Debug.todo "Not Possible"
-
-              Cycle _ _ _ ->
-                case choose_dir first_cycle main_cycle other_cycle_shifted of
-                  Nothing -> n :: (recurse first_cycle (step dir main_cycle) other_cycle dir start_pt (counter - 1))
-
-                  Just new_dir -> recurse (not first_cycle) other_cycle_shifted main_cycle new_dir start_pt (counter - 1)
+                  Just new_dec ->
+                    if new_dec.switch then
+                      n :: (recurse (not first_cycle) (step new_dec.dir other_cycle_shifted) main_cycle new_dec start_pt (counter - 1))
+                    else
+                      n :: (recurse first_cycle (step new_dec.dir main_cycle) other_cycle new_dec start_pt (counter - 1))
 
   in
     case current c_1 of
       Nothing -> []
-      Just pt -> recurse True (stepForward c_1) c_2 Forward pt 15
+      Just pt ->
+        -- recurse True (stepForward c_1) c_2 Forward pt 15
+        pt :: (recurse True (step init_dir c_1) c_2 {dir=init_dir, switch=True} pt 50)
 
 
 
