@@ -365,33 +365,18 @@ determine_outline p_list =
 
 
 get_inner : Polygon -> Polygon -> Maybe Polygon
-get_inner poly_a poly_b =
-  let
-    a_in_b = List.foldl (&&) True <| List.map (\pt -> point_inside_polygon pt poly_b) poly_a
-    b_in_a = List.foldl (&&) True <| List.map (\pt -> point_inside_polygon pt poly_a) poly_b
-  in
-    if a_in_b then Just poly_a else
-    if b_in_a then Just poly_b else
-    Nothing
+get_inner poly_a poly_b = Maybe.map Tuple.second <| get_outer_inner poly_a poly_b
 
 get_outer : Polygon -> Polygon -> Maybe Polygon
-get_outer poly_a poly_b =
-  let
-    a_in_b = List.foldl (&&) True <| List.map (\pt -> point_inside_polygon pt poly_b) poly_a
-    b_in_a = List.foldl (&&) True <| List.map (\pt -> point_inside_polygon pt poly_a) poly_b
-  in
-    if a_in_b then Just poly_b else
-    if b_in_a then Just poly_a else
-    Nothing
+get_outer poly_a poly_b = Maybe.map Tuple.first  <| get_outer_inner poly_a poly_b
 
 get_outer_inner : Polygon -> Polygon -> Maybe (Polygon, Polygon)
 get_outer_inner poly_a poly_b =
   let
-    a_in_b = List.foldl (&&) True <| List.map (\pt -> point_inside_polygon pt poly_b) poly_a
-    b_in_a = List.foldl (&&) True <| List.map (\pt -> point_inside_polygon pt poly_a) poly_b
+    x_in_y x y = List.foldl (&&) True <| List.map (\pt -> point_inside_polygon pt y) x
   in
-    if a_in_b then Just (poly_b, poly_a) else
-    if b_in_a then Just (poly_a, poly_b) else
+    if x_in_y poly_a poly_b then Just (poly_b, poly_a) else
+    if x_in_y poly_b poly_a then Just (poly_a, poly_b) else
     Nothing
 
 
