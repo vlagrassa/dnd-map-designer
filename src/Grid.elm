@@ -37,6 +37,15 @@ makeRectDims (x, y) width height =
   Polygon [(x, y), (x + width, y), (x + width, y + height), (x, y + height)]
 
 
+compositeFromTuple : (Polygon, List Polygon) -> Shape
+compositeFromTuple (outline, holes) = Composite outline holes
+
+fromOutlineAndHoles : (Polygon, List Polygon) -> Shape
+fromOutlineAndHoles (outline, holes) =
+  case holes of
+    [] -> Polygon outline
+    _  -> Composite outline holes
+
 
 
 -- Various Map Functions ---------------------------------------------
@@ -174,12 +183,23 @@ opposite_dir dir = case dir of
 
 -- If two shapes overlap, return their union; if not, return Nothing
 union : Shape -> Shape -> Maybe Shape
-union a b = Nothing
+union a b =
+  case (a, b) of
+    (Polygon a_poly, Polygon b_poly) ->
+      union_polygons a_poly b_poly
+      |> Maybe.map fromOutlineAndHoles
+    _ -> Nothing
 
 
 -- If two shapes overlap, return their intersection; if not, return Nothing
 intersection : Shape -> Shape -> Maybe (List Shape)
-intersection a b = Nothing
+intersection a b =
+  case (a, b) of
+    (Polygon a_poly, Polygon b_poly) ->
+      intersect_polygons a_poly b_poly
+      |> Maybe.map (List.map Polygon)
+
+    _ -> Nothing
 
 
 -- If two shapes overlap, return the first minus the second; if not, return Nothing
@@ -317,19 +337,95 @@ trace_polygons_maker initial_d poly_a poly_b =
 
 
 
-union_polygons : Polygon -> Polygon -> Maybe (List Polygon)
+filterSplit : (a -> Bool) -> List a -> (List a, List a)
+filterSplit f list =
+  case list of
+    [] -> ([], [])
+    x::xs ->
+      if f x then
+        Tuple.mapFirst ((::) x) <| filterSplit f xs
+      else
+        Tuple.mapSecond ((::) x) <| filterSplit f xs
+
+determine_outline : List Polygon -> Maybe (Polygon, List Polygon)
+determine_outline p_list =
+  case p_list of
+    []    -> Nothing
+    p::[] -> Just (p, [])
+    p::ps ->
+      let
+        results = List.head p
+          |> Maybe.map (\pt -> filterSplit (\q -> point_inside_polygon pt q) ps)
+      in
+        case results of
+          Nothing -> Nothing
+          Just (candidates, holes) -> case candidates of
+            [] -> Just (p, holes)
+            _  -> Maybe.map (Tuple.mapSecond ((++) holes)) <| determine_outline candidates
+
+
+get_inner : Polygon -> Polygon -> Maybe Polygon
+get_inner poly_a poly_b =
+  let
+    a_in_b = List.foldl (&&) True <| List.map (\pt -> point_inside_polygon pt poly_b) poly_a
+    b_in_a = List.foldl (&&) True <| List.map (\pt -> point_inside_polygon pt poly_a) poly_b
+  in
+    if a_in_b then Just poly_a else
+    if b_in_a then Just poly_b else
+    Nothing
+
+get_outer : Polygon -> Polygon -> Maybe Polygon
+get_outer poly_a poly_b =
+  let
+    a_in_b = List.foldl (&&) True <| List.map (\pt -> point_inside_polygon pt poly_b) poly_a
+    b_in_a = List.foldl (&&) True <| List.map (\pt -> point_inside_polygon pt poly_a) poly_b
+  in
+    if a_in_b then Just poly_b else
+    if b_in_a then Just poly_a else
+    Nothing
+
+get_outer_inner : Polygon -> Polygon -> Maybe (Polygon, Polygon)
+get_outer_inner poly_a poly_b =
+  let
+    a_in_b = List.foldl (&&) True <| List.map (\pt -> point_inside_polygon pt poly_b) poly_a
+    b_in_a = List.foldl (&&) True <| List.map (\pt -> point_inside_polygon pt poly_a) poly_b
+  in
+    if a_in_b then Just (poly_b, poly_a) else
+    if b_in_a then Just (poly_a, poly_b) else
+    Nothing
+
+
+
+union_polygons : Polygon -> Polygon -> Maybe (Polygon, List Polygon)
 union_polygons poly_a poly_b =
   let
     corrected_b = set_direction (direction poly_a) poly_b
+
+    make_trace a b = trace_polygons_maker Cycle.Backward a b
+      |> Maybe.andThen determine_outline
+
+    take_outer a b = get_outer a b
+      |> Maybe.map (\x -> (x, []))
   in
-    trace_polygons_maker Cycle.Backward poly_a corrected_b
+    MaybeE.orListLazy
+      [ \() -> make_trace poly_a corrected_b
+      , \() -> take_outer poly_a poly_b
+      ]
 
 intersect_polygons : Polygon -> Polygon -> Maybe (List Polygon)
 intersect_polygons poly_a poly_b =
   let
     corrected_b = set_direction (opposite_dir <| direction poly_a) poly_b
+
+    make_trace = trace_polygons_maker Cycle.Forward
+
+    take_inner a b = get_inner a b
+      |> Maybe.map List.singleton
   in
-    trace_polygons_maker Cycle.Forward poly_a corrected_b
+    MaybeE.orListLazy
+      [ \() -> make_trace poly_a corrected_b
+      , \() -> take_inner poly_a poly_b
+      ]
 
 complement_polygons : Polygon -> Polygon -> Maybe (List Polygon)
 complement_polygons poly_a poly_b =
