@@ -1,5 +1,6 @@
 module Grid exposing (..)
 
+import Either exposing (..)
 import List.Extra as ListE
 import Maybe.Extra as MaybeE
 
@@ -96,6 +97,7 @@ flatten shape =
               in
                 List.foldl (&&) True intersections
 
+        -- Search for a shape to jump to in the list of remaining holes
         recurse_outline remaining_points remaining_holes =
           case remaining_points of
             [] -> []
@@ -113,6 +115,8 @@ flatten shape =
                   in
                     pt :: new_segment ++ (recurse_outline remaining_points new_remaining_holes)
 
+        -- Search for a new shape to jump to in the list of remaining holes
+        -- Once you find it, pull it out and recurse on it instead
         recurse_hole remaining_points remaining_holes =
           case remaining_points of
             [] -> ([], remaining_holes)
@@ -281,6 +285,7 @@ union a b =
     (Polygon a_poly, Polygon b_poly) ->
       union_polygons a_poly b_poly
       |> Maybe.map fromOutlineAndHoles
+
     _ -> Nothing
 
 
@@ -297,8 +302,21 @@ intersection a b =
 
 -- If two shapes overlap, return the first minus the second; if not, return Nothing
 complement : Shape -> Shape -> Maybe (List Shape)
-complement a b = Nothing
+complement a b =
+  case (a, b) of
+    (Polygon a_poly, Polygon b_poly) ->
+      let
+        polys = (complement_polygons a_poly b_poly)
+        handle_indents = List.map Polygon
+        handle_hole    = List.singleton << fromOutlineAndHoles
+      in
+        Maybe.map (Either.unpack handle_indents handle_hole) polys
 
+    _ -> Nothing
+
+
+complement_ : Shape -> Shape -> List Shape
+complement_ a b = MaybeE.unwrap [a] identity (complement a b)
 
 
 
@@ -328,6 +346,7 @@ insert_intersection_points poly outline =
 
   in
     if (new_pts == poly) then Nothing else Just new_pts
+    -- TODO: ListE.unique new_pts
 
 
 -- Return the two polygons with all intersection points filled in
@@ -339,6 +358,7 @@ create_intersections poly_a poly_b =
     sects = List.map (\p -> List.map (\q -> line_intersect p q) a_lines) b_lines
       |> List.concat
       |> MaybeE.values
+      --TODO: |> ListE.unique
   in
     case sects of
       [] -> Nothing
@@ -346,6 +366,9 @@ create_intersections poly_a poly_b =
         (Just new_a, Just new_b) -> Just (new_a, new_b, sects)
         _ -> Nothing
 
+
+
+-- TODO: Merge trace_polygons and trace_polygons_maker??
 
 trace_polygons : Cycle.Dir -> (List Point -> Polygon -> Cycle Point -> Bool)
               -> Cycle.WeaveDecFunc Point -> Cycle.WeaveDecFunc Point
@@ -472,6 +495,13 @@ get_outer_inner poly_a poly_b =
     if x_in_y poly_b poly_a then Just (poly_a, poly_b) else
     Nothing
 
+is_inner : Polygon -> Polygon -> Bool
+is_inner x y =
+  List.foldl (&&) True <| List.map (\pt -> point_inside_polygon pt y) x
+
+is_outer : Polygon -> Polygon -> Bool
+is_outer x y =
+  List.foldl (&&) True <| List.map (\pt -> point_inside_polygon pt x) y
 
 
 union_polygons : Polygon -> Polygon -> Maybe (Polygon, List Polygon)
@@ -490,6 +520,7 @@ union_polygons poly_a poly_b =
       , \() -> take_outer poly_a poly_b
       ]
 
+
 intersect_polygons : Polygon -> Polygon -> Maybe (List Polygon)
 intersect_polygons poly_a poly_b =
   let
@@ -505,18 +536,36 @@ intersect_polygons poly_a poly_b =
       , \() -> take_inner poly_a poly_b
       ]
 
-complement_polygons : Polygon -> Polygon -> Maybe (List Polygon)
+
+-- LEFT:  Indentations
+-- RIGHT: Single hole
+complement_polygons : Polygon -> Polygon -> Maybe (Either (List Polygon) (Polygon, List Polygon))
 complement_polygons poly_a poly_b =
   let
     (dir_a, dir_b) = (direction poly_a, direction poly_b)
+
+    make_trace a b =
+      if (dir_a == dir_b) then
+        trace_polygons_maker Cycle.Forward  poly_b poly_a
+        |> Maybe.map Either.Left
+      else
+        trace_polygons_maker Cycle.Backward poly_a poly_b
+        |> Maybe.map Either.Left
+
+    make_composite a b =
+      if is_outer a b then
+        Just <| Either.Right (a, [b])
+      else
+      if is_inner a b then
+        Just <| Either.Left []
+      else
+        Nothing
+
   in
-    if (dir_a == dir_b) then
-      trace_polygons_maker Cycle.Forward  poly_a poly_b
-    else
-      trace_polygons_maker Cycle.Backward poly_b poly_a
-
-
-
+    MaybeE.orListLazy
+      [ \() -> make_trace poly_a poly_b
+      , \() -> make_composite poly_a poly_b
+      ]
 
 
 
@@ -614,6 +663,9 @@ colinear p q r =
   -- If any two points are equal, then two points are colinear by default
   if p == q || q == r || p == r then
     True
+  ---- If they all have the same x coordinate, don't bother computing slope/intercept
+  --else if (Tuple.first p == Tuple.first q) && (Tuple.first q == Tuple.first r) then
+  --  True
   else
     slope_intercept (p, q) == slope_intercept (q, r)
 
