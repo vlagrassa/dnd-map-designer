@@ -48,6 +48,80 @@ fromOutlineAndHoles (outline, holes) =
 
 
 
+extractMatch : (a -> Bool) -> List a -> Maybe (a, List a)
+extractMatch f list =
+  case list of
+    [] -> Nothing
+    x::xs ->
+      if f x then
+        Just (x, xs)
+      else
+        Maybe.map (Tuple.mapSecond ((::) x)) (extractMatch f xs)
+
+
+flatten : Shape -> Polygon
+flatten shape =
+  case shape of
+    Polygon poly -> poly
+
+    Composite outline holes ->
+
+      let
+        corrected_holes =
+          List.map (set_direction << opposite_dir << direction <| outline) holes
+          |> List.map make_loop
+
+        make_loop list = case list of
+          [] -> []
+          (x::xs) -> list ++ [x]
+
+        clear_shot pt sh =
+          case sh of
+            [] -> False
+            v::vs ->
+              let
+                tentative_line = (pt, v)
+
+                check_clear hole =
+                  let
+                    cross_pts =
+                      line_intersect_polygon tentative_line hole
+                        |> List.filter (\x -> x /= v && x /= pt)
+                  in
+                    case cross_pts of
+                      [] -> True
+                      _  -> False
+
+                intersections = List.map check_clear corrected_holes
+              in
+                List.foldl (&&) True intersections
+
+        foo remaining_points remaining_holes =
+          case remaining_points of
+            [] -> Debug.log "Hit the bottom?" []
+            pt::pts ->
+
+              -- Try and find an open path to another hole
+              case extractMatch (clear_shot pt) remaining_holes of
+
+                -- If no open paths to any other holes, move on to the next point
+                Nothing ->
+                  pt :: foo pts remaining_holes
+
+                -- If an open path, jump to that hole, then finish this one
+                Just (next_hole, other_holes) ->
+                  pt :: (foo next_hole other_holes) ++ (pt::pts)
+
+      in
+
+        case outline of
+          [] -> []
+          start::tail ->
+              foo outline corrected_holes
+
+
+
+
 -- Various Map Functions ---------------------------------------------
 
 map : (Float -> Float, Float -> Float) -> Point -> Point
@@ -540,6 +614,14 @@ solve_for_x y ((x1, y1), (x2, y2)) =
       m = (y2 - y1) / (x2 - x1)
     in
       Just <| x1 + ((y - y1) / m)
+
+
+line_intersect_polygon : (Point, Point) -> Polygon -> List Point
+line_intersect_polygon line poly =
+  let
+    shape_lines = pointsToLines poly
+  in
+    List.map (line_intersect line) shape_lines |> MaybeE.values
 
 
 
