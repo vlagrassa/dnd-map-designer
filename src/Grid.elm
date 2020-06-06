@@ -96,9 +96,26 @@ flatten shape =
               in
                 List.foldl (&&) True intersections
 
-        foo remaining_points remaining_holes =
+        recurse_outline remaining_points remaining_holes =
           case remaining_points of
-            [] -> Debug.log "Hit the bottom?" []
+            [] -> []
+            pt::pts ->
+              case extractMatch (clear_shot pt) remaining_holes of
+
+                -- If no open paths to any holes, move on to the next point
+                Nothing ->
+                  pt :: recurse_outline pts remaining_holes
+
+                -- If an open path, jump to that hole and return to this point
+                Just (next_hole, other_holes) ->
+                  let
+                    (new_segment, new_remaining_holes) = (recurse_hole next_hole other_holes)
+                  in
+                    pt :: new_segment ++ (recurse_outline remaining_points new_remaining_holes)
+
+        recurse_hole remaining_points remaining_holes =
+          case remaining_points of
+            [] -> ([], remaining_holes)
             pt::pts ->
 
               -- Try and find an open path to another hole
@@ -106,18 +123,20 @@ flatten shape =
 
                 -- If no open paths to any other holes, move on to the next point
                 Nothing ->
-                  pt :: foo pts remaining_holes
+                  Tuple.mapFirst ((::) pt) <| recurse_hole pts remaining_holes
 
                 -- If an open path, jump to that hole, then finish this one
                 Just (next_hole, other_holes) ->
-                  pt :: (foo next_hole other_holes) ++ (pt::pts)
+                  let
+                    recursive_call = recurse_hole next_hole other_holes
+                  in
+                    Tuple.mapFirst (\xs -> pt :: xs ++ (pt::pts)) recursive_call
 
       in
-
         case outline of
           [] -> []
           start::tail ->
-              foo outline corrected_holes
+              recurse_outline outline corrected_holes
 
 
 
