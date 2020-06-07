@@ -376,7 +376,7 @@ scaleGridToCol_i : Int -> Float
 scaleGridToCol_i = scaleGridToCol << toFloat
 
 gridToCol : Grid.Point -> C.Point
-gridToCol = Grid.map scaleGridToCol
+gridToCol = Grid.mapSame scaleGridToCol
 
 
 -- Collage positions to Grid positions
