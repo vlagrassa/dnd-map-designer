@@ -441,12 +441,34 @@ trace_polygons_maker initial_d poly_a poly_b =
       else
         Nothing
 
+    entering_poly : Polygon -> Cycle Point -> Bool
+    entering_poly poly cyc =
+      case cyc of
+        Cycle.Empty -> False
+        Cycle.Cycle _ start_pt _ ->
+          let
+            recurse b curr_cyc =
+              let
+                shifted_cyc = Cycle.stepBackward curr_cyc
+              in
+                case Cycle.current shifted_cyc of
+                  Nothing -> False
+                  Just pt ->
+                    if pt == start_pt then
+                      False
+                    else if (point_inside_polygon pt poly) then
+                      recurse (not b) shifted_cyc
+                    else
+                      b
+          in
+            recurse True cyc
+
     valid_start : List Point -> Polygon -> Cycle Point -> Bool
     valid_start sects poly cyc =
-      case (Cycle.current cyc, Cycle.prev cyc) of
-        (Just curr, Just prv) ->
-          List.member curr sects && not (point_inside_polygon prv poly)
-        _ -> False
+      case Cycle.current cyc of
+        Just curr ->
+          List.member curr sects && entering_poly poly cyc
+        Nothing -> False
 
   in
     trace_polygons initial_d valid_start switch_a switch_b poly_a poly_b
