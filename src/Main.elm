@@ -440,28 +440,42 @@ path_to_collage : (C.LineStyle) -> Grid.Path -> C.Collage Msg
 path_to_collage line (Grid.Path p) =
   (C.path (List.map gridToCol p)) |> C.traced line
 
+
+
+
 -- Adding and Removing Shapes ----------------------------------------
 
-add_ground : Grid.Shape -> Model -> Model
-add_ground shape model =
-  let
-    add_shape : List Grid.Shape -> Grid.Shape -> List Grid.Shape
-    add_shape shape_list new_shape = case shape_list of
-      [] -> [new_shape]
-      head::tail ->
-        case Grid.union head new_shape of
-          Nothing -> head :: add_shape tail new_shape
-          Just u  -> add_shape tail u
-  in
-    {model | ground = add_shape model.ground shape}
+
+add_ground_model : Grid.Shape -> Model -> Model
+add_ground_model shape model =
+  {model | ground = add_ground shape model.ground}
+
+add_ground : Grid.Shape -> List Grid.Shape -> List Grid.Shape
+add_ground new_shape shape_list =
+  case shape_list of
+    [] -> [new_shape]
+    head::tail ->
+      case Grid.union head new_shape of
+        Nothing -> head :: add_ground new_shape tail
+        Just u  -> add_ground u tail
 
 add_wall : Grid.Path -> Model -> Model
 add_wall path model =
   { model | walls = path :: model.walls }
 
 
-remove_ground : Grid.Shape -> Model -> Model
-remove_ground shape model = model
+remove_ground_model : Grid.Shape -> Model -> Model
+remove_ground_model shape model =
+  {model | ground = remove_ground shape model.ground}
+
+remove_ground : Grid.Shape -> List Grid.Shape -> List Grid.Shape
+remove_ground shape shape_list =
+  case shape_list of
+    [] -> []
+    head::tail ->
+      case Grid.difference head shape of
+        Nothing -> head :: remove_ground shape shape_list
+        Just d  -> d ++ (remove_ground shape shape_list )
 
 remove_wall : Grid.Path -> Model -> Model
 remove_wall path model = model
