@@ -274,6 +274,10 @@ opposite_dir dir = case dir of
 
 
 
+cart_prod : (a -> b -> c) -> List a -> List b -> List c
+cart_prod f a_list b_list =
+  List.concatMap (\b -> List.map (\a -> f a b) a_list) b_list
+
 
 
 -- Merging Shapes ----------------------------------------------------
@@ -281,12 +285,64 @@ opposite_dir dir = case dir of
 -- If two shapes overlap, return their union; if not, return Nothing
 union : Shape -> Shape -> Maybe Shape
 union a b =
-  case (a, b) of
+  let
+    make_holes outline holes =
+      let
+        complements = List.map (\p -> complement_polygons p outline) holes |> MaybeE.values
+      in
+        List.foldl (\c acc -> Maybe.map2 (++) (leftToMaybe c) acc) (Just []) complements
+
+  in case (a, b) of
+
     (Polygon a_poly, Polygon b_poly) ->
       union_polygons a_poly b_poly
       |> Maybe.map fromOutlineAndHoles
 
-    _ -> Nothing
+    (Composite a_outline a_holes, Polygon b_poly) ->
+      let
+        new_outline = union_polygons a_outline b_poly
+        new_holes = make_holes b_poly a_holes
+
+        handle_holes holes =
+          case new_outline of
+            Nothing ->
+              Composite a_outline holes
+            Just (outline, more_holes) ->
+              Composite outline (holes ++ more_holes)
+      in
+        Maybe.map handle_holes new_holes
+
+    (Polygon _, Composite _ _) -> union b a
+
+    (Composite a_outline a_holes, Composite b_outline b_holes) ->
+      let
+        -- Get the new outline of the shape, as well as any holes created by the configurations
+        -- of the outlines
+        new_outline = MaybeE.or
+
+            -- Try taking the union of the two outlines
+            (union_polygons a_outline b_outline)
+
+            -- If that doesn't work, see if one is contained in the other
+            -- If that's the case, the outlines won't create any new holes
+            (get_outer a_outline b_outline |> Maybe.map (\x -> (x,[])) )
+
+        -- For all holes in one shape, subtract out the outline of the other shape
+        new_holes_a = make_holes b_outline a_holes
+        new_holes_b = make_holes a_outline b_holes
+        new_holes_either = Maybe.map2 (++) new_holes_a new_holes_b
+
+        -- All holes that exist because they're holes in both shapes
+        new_holes_both = cart_prod intersect_polygons b_holes a_holes |> MaybeE.values |> List.concat
+
+        handle_holes_and_outline holes (outline, more_holes) =
+          Composite outline (holes ++ more_holes ++ new_holes_both)
+
+      in
+        Maybe.map2 handle_holes_and_outline new_holes_either new_outline
+
+union_ : Shape -> Shape -> List Shape
+union_ a b = MaybeE.unwrap [a, b] List.singleton (union a b)
 
 
 -- If two shapes overlap, return their intersection; if not, return Nothing
