@@ -370,11 +370,11 @@ create_intersections poly_a poly_b =
 
 -- TODO: Merge trace_polygons and trace_polygons_maker??
 
-trace_polygons : Cycle.Dir -> (List Point -> Polygon -> Cycle Point -> Bool)
-              -> Cycle.WeaveDecFunc Point -> Cycle.WeaveDecFunc Point
+trace_polygons : (List Point -> Polygon -> Cycle Point -> Bool)
+              -> (Cycle Point -> Cycle Point -> List Point)
               -> Polygon -> Polygon
               -> Maybe (List Polygon)
-trace_polygons initial_d valid_start switch_func_a switch_func_b poly_a poly_b =
+trace_polygons valid_start weave_func poly_a poly_b =
   let
 
     init_recurse : (Polygon, Polygon, List Point) -> List Polygon
@@ -389,8 +389,7 @@ trace_polygons initial_d valid_start switch_func_a switch_func_b poly_a poly_b =
         shift_to_intersection cyc_x poly_y =
           Cycle.shiftUntilWhole (valid_start sects poly_y) cyc_x
 
-        perform_weave cyc_x =
-          Cycle.weaveMatchDiff (==) switch_func_a switch_func_b initial_d cyc_x cyc_b
+        perform_weave cyc_x = weave_func cyc_x cyc_b
 
         remaining_sects s = List.filter (\x -> not <| List.member x s) sects
 
@@ -495,8 +494,11 @@ trace_polygons_maker initial_d poly_a poly_b =
           List.member curr sects && entering_poly sects poly cyc
         Nothing -> False
 
+    weave_func : Cycle Point -> Cycle Point -> List Point
+    weave_func = Cycle.weaveMatchDiff (==) switch_a switch_b initial_d
+
   in
-    trace_polygons initial_d valid_start switch_a switch_b poly_a poly_b
+    trace_polygons valid_start weave_func poly_a poly_b
 
 
 
