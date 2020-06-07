@@ -315,14 +315,7 @@ union a b =
       let
         -- Get the new outline of the shape, as well as any holes created by the configurations
         -- of the outlines
-        new_outline = MaybeE.or
-
-            -- Try taking the union of the two outlines
-            (union_polygons a_outline b_outline)
-
-            -- If that doesn't work, see if one is contained in the other
-            -- If that's the case, the outlines won't create any new holes
-            (get_outer a_outline b_outline |> Maybe.map (\x -> (x,[])) )
+        new_outline = union_polygons a_outline b_outline
 
         -- For all holes in one shape, subtract out the outline of the other shape
         new_holes_a = make_holes b_outline a_holes
@@ -352,9 +345,7 @@ intersection a b =
 
     (Composite a_outline a_holes, Composite b_outline b_holes) ->
       let
-        new_outline = MaybeE.or
-          (intersect_polygons a_outline b_outline)
-          (get_inner a_outline b_outline |> Maybe.map List.singleton)
+        new_outline = intersect_polygons a_outline b_outline
 
         format_as_tuples : List Polygon -> List (Polygon, List Polygon)
         format_as_tuples = List.map (\o -> (o, []))
