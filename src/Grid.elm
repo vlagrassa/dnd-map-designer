@@ -4,6 +4,7 @@ import Either exposing (..)
 import List.Extra as ListE
 import Maybe.Extra as MaybeE
 
+import Utils exposing (..)
 import Cycle exposing (Cycle)
 
 type alias Point = (Float, Float)
@@ -116,17 +117,6 @@ fromOutlineAndHoles (outline, holes) =
     [] -> Polygon outline
     _  -> Composite outline holes
 
-
-
-extractMatch : (a -> Bool) -> List a -> Maybe (a, List a)
-extractMatch f list =
-  case list of
-    [] -> Nothing
-    x::xs ->
-      if f x then
-        Just (x, xs)
-      else
-        Maybe.map (Tuple.mapSecond ((::) x)) (extractMatch f xs)
 
 
 flatten : Shape -> Polygon
@@ -340,12 +330,6 @@ opposite_dir dir = case dir of
   Clockwise -> Widdershins
   Widdershins -> Clockwise
 
-
-
-
-cart_prod : (a -> b -> c) -> List a -> List b -> List c
-cart_prod f a_list b_list =
-  List.concatMap (\b -> List.map (\a -> f a b) a_list) b_list
 
 
 
@@ -849,19 +833,7 @@ order_points : Line -> List Point -> List Point
 order_points (p, _) = List.sortBy (distance p)
 
 pointsToLines : List Point -> List (Point, Point)
-pointsToLines list =
-  --listPairsWrap
-  case list of
-    [] -> []
-    p::ps ->
-      let
-        recurse xs = case xs of
-          [] -> []
-          x :: [] -> [(x, p)]
-          x :: y :: more ->
-            (x, y) :: recurse (y :: more)
-      in
-        recurse list
+pointsToLines = listPairsWrap
 
 line_intersect : (Point, Point) -> (Point, Point) -> Maybe Point
 line_intersect line_1 line_2 =
