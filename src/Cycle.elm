@@ -20,6 +20,13 @@ type alias WeaveDec =
 
 
 
+
+otherDirection : Dir -> Dir
+otherDirection dir = case dir of
+  Forward -> Backward
+  Backward -> Forward
+
+
 -- Converting To/From Lists ------------------------------------------
 
 fromList : List a -> Cycle a
