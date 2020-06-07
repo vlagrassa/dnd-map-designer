@@ -38,6 +38,18 @@ makeRectDims (x, y) width height =
   Polygon [(x, y), (x + width, y), (x + width, y + height), (x, y + height)]
 
 
+makeRing : Point -> Point -> Float -> Shape
+makeRing p1 p2 t =
+  let
+    (x, y)          = minCoords  p1 p2
+    (width, height) = dimensions p1 p2
+
+    outside = [(x, y), (x + width, y), (x + width, y + height), (x, y + height)]
+    inside = [(x+t, y+t), (x + width - t, y+t), (x + width - t, y + height - t), (x+t, y + height - t)]
+  in
+    Composite outside [inside]
+
+
 compositeFromTuple : (Polygon, List Polygon) -> Shape
 compositeFromTuple (outline, holes) = Composite outline holes
 
