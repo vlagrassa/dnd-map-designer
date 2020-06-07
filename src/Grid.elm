@@ -397,7 +397,7 @@ complement a b =
 
 
 complement_ : Shape -> Shape -> List Shape
-complement_ a b = MaybeE.unwrap [a] identity (complement a b)
+complement_ a b = Maybe.withDefault [a] (complement a b)
 
 
 
