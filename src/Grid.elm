@@ -338,39 +338,44 @@ union_ a b = MaybeE.unwrap [a, b] List.singleton (union a b)
 -- If two shapes overlap, return their intersection; if not, return Nothing
 intersection : Shape -> Shape -> Maybe (List Shape)
 intersection a b =
+  let
+    format_as_tuples : List Polygon -> List (Polygon, List Polygon)
+    format_as_tuples = List.map (\o -> (o, []))
+
+    remove_hole : Polygon -> List (Polygon, List Polygon) -> List (Polygon, List Polygon)
+    remove_hole hole =
+      let
+        convert_to_same = Either.unpack format_as_tuples List.singleton
+
+        map_func (x, hs) = complement_polygons x hole
+          |> Maybe.map convert_to_same
+          |> Maybe.withDefault [(x, hs)]
+      in
+        List.concatMap map_func
+
+    remove_all_holes : List Polygon -> List (Polygon, List Polygon) -> List (Polygon, List Polygon)
+    remove_all_holes holes outline = List.foldl (\h -> remove_hole h) outline holes
+
+    make_shapes : List Polygon -> List Polygon -> List Shape
+    make_shapes holes =
+      format_as_tuples >> remove_all_holes holes >> List.map fromOutlineAndHoles
+
+    perform_intersect : Polygon -> Polygon -> List Polygon -> Maybe (List Shape)
+    perform_intersect outline_1 outline_2 holes =
+      intersect_polygons outline_1 outline_2 |> Maybe.map (make_shapes holes)
+  in
+
   case (a, b) of
     (Polygon a_poly, Polygon b_poly) ->
-      intersect_polygons a_poly b_poly
-      |> Maybe.map (List.map Polygon)
+      intersect_polygons a_poly b_poly |> Maybe.map (List.map Polygon)
+
+    (Composite a_outline a_holes, Polygon b_poly) -> perform_intersect a_outline b_poly a_holes
+
+    (Polygon a_poly, Composite b_outline b_holes) -> perform_intersect a_poly b_outline b_holes
 
     (Composite a_outline a_holes, Composite b_outline b_holes) ->
-      let
-        new_outline = intersect_polygons a_outline b_outline
+      perform_intersect a_outline b_outline (a_holes ++ b_holes)
 
-        format_as_tuples : List Polygon -> List (Polygon, List Polygon)
-        format_as_tuples = List.map (\o -> (o, []))
-
-        remove_hole : Polygon -> List (Polygon, List Polygon) -> List (Polygon, List Polygon)
-        remove_hole hole =
-          let
-            convert_to_same = Either.unpack format_as_tuples List.singleton
-
-            map_func (x, hs) = complement_polygons x hole
-              |> Maybe.map convert_to_same
-              |> Maybe.withDefault [(x, hs)]
-          in
-            List.concatMap map_func
-
-        remove_all_holes : List (Polygon, List Polygon) -> List (Polygon, List Polygon)
-        remove_all_holes outline =
-          List.foldl (\h -> remove_hole h) outline (a_holes ++ b_holes)
-
-        make_shapes = format_as_tuples >> remove_all_holes >> List.map fromOutlineAndHoles
-
-      in
-        Maybe.map make_shapes new_outline
-
-    _ -> Nothing
 
 intersection_ : Shape -> Shape -> List Shape
 intersection_ a b = Maybe.withDefault [a, b] (intersection a b)
