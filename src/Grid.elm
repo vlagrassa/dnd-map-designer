@@ -288,10 +288,10 @@ union a b =
   let
     make_holes outline holes =
       let
-        map_func p = Maybe.withDefault (Either.Left [p]) (complement_polygons p outline)
-        complements = List.map map_func holes
+        map_func p = Maybe.withDefault (Either.Left [p]) (difference_polygons p outline)
+        differences = List.map map_func holes
       in
-        List.foldl (\c acc -> Maybe.map2 (++) (leftToMaybe c) acc) (Just []) complements
+        List.foldl (\c acc -> Maybe.map2 (++) (leftToMaybe c) acc) (Just []) differences
 
   in case (a, b) of
 
@@ -347,7 +347,7 @@ intersection a b =
       let
         convert_to_same = Either.unpack format_as_tuples List.singleton
 
-        map_func (x, hs) = complement_polygons x hole
+        map_func (x, hs) = difference_polygons x hole
           |> Maybe.map convert_to_same
           |> Maybe.withDefault [(x, hs)]
       in
@@ -382,12 +382,12 @@ intersection_ a b = Maybe.withDefault [a, b] (intersection a b)
 
 
 -- If two shapes overlap, return the first minus the second; if not, return Nothing
-complement : Shape -> Shape -> Maybe (List Shape)
-complement a b =
+difference : Shape -> Shape -> Maybe (List Shape)
+difference a b =
   case (a, b) of
     (Polygon a_poly, Polygon b_poly) ->
       let
-        polys = (complement_polygons a_poly b_poly)
+        polys = (difference_polygons a_poly b_poly)
         handle_indents = List.map Polygon
         handle_hole    = List.singleton << fromOutlineAndHoles
       in
@@ -396,8 +396,8 @@ complement a b =
     _ -> Nothing
 
 
-complement_ : Shape -> Shape -> List Shape
-complement_ a b = Maybe.withDefault [a] (complement a b)
+difference_ : Shape -> Shape -> List Shape
+difference_ a b = Maybe.withDefault [a] (difference a b)
 
 
 
@@ -486,7 +486,7 @@ trace_polygons valid_start weave_func poly_a poly_b =
 
 
 
--- Turns out, this bad boy will do union, intersection, and either complement depending on
+-- Turns out, this bad boy will do union, intersection, and either difference depending on
 -- the direction (clockwise/anticlockwise) of both shapes
 trace_polygons_maker : Cycle.Dir -> Polygon -> Polygon -> Maybe (List Polygon)
 trace_polygons_maker initial_d poly_a poly_b =
@@ -669,8 +669,8 @@ intersect_polygons poly_a poly_b =
 
 -- LEFT:  Indentations
 -- RIGHT: Single hole
-complement_polygons : Polygon -> Polygon -> Maybe (Either (List Polygon) (Polygon, List Polygon))
-complement_polygons poly_a poly_b =
+difference_polygons : Polygon -> Polygon -> Maybe (Either (List Polygon) (Polygon, List Polygon))
+difference_polygons poly_a poly_b =
   let
     (dir_a, dir_b) = (direction poly_a, direction poly_b)
 
