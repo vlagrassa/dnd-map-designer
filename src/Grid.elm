@@ -308,7 +308,12 @@ union a b =
             Nothing ->
               Composite a_outline holes
             Just (outline, more_holes) ->
-              Composite outline (holes ++ more_holes)
+              let
+                all_the_holes = holes ++ more_holes
+              in
+                case all_the_holes of
+                  [] -> Polygon outline
+                  _  -> Composite outline all_the_holes
       in
         Maybe.map handle_holes new_holes
 
@@ -336,7 +341,12 @@ union a b =
         new_holes_both = cart_prod intersect_polygons b_holes a_holes |> MaybeE.values |> List.concat
 
         handle_holes_and_outline holes (outline, more_holes) =
-          Composite outline (holes ++ more_holes ++ new_holes_both)
+          let
+            all_the_holes = (holes ++ more_holes ++ new_holes_both)
+          in
+            case all_the_holes of
+              [] -> Polygon outline
+              _  -> Composite outline all_the_holes
 
       in
         Maybe.map2 handle_holes_and_outline new_holes_either new_outline
