@@ -418,16 +418,23 @@ jsToGridLocked model coord =
 shape_to_collage : (C.FillStyle, C.LineStyle) -> Grid.Shape -> C.Collage Msg
 shape_to_collage (fill, line) shape =
   let
-    scale_and_style = List.map gridToCol >> C.polygon >> C.styled (fill, line)
+    scale_and_convert = List.map gridToCol >> C.polygon
+    style_both =    C.styled (fill, line)
+    style_outline = C.styled (C.transparent, line)
+    style_fill =    C.filled fill
   in
     case shape of
       -- Convert polygons pretty directly
-      Grid.Polygon ps -> scale_and_style ps
+      Grid.Polygon ps -> scale_and_convert ps |> style_both
 
       -- Draw the outlines, and only fill in the part that isn't in a hole
       -- This is the tricky part...
       Grid.Composite outline holes ->
-        C.group <| scale_and_style outline :: List.map scale_and_style holes
+        let
+          outlines = List.map (style_outline << scale_and_convert) (outline :: holes)
+          inside   = style_fill << scale_and_convert <| Grid.flatten shape
+        in
+          C.group (outlines ++ [inside])
 
 path_to_collage : (C.LineStyle) -> Grid.Path -> C.Collage Msg
 path_to_collage line (Grid.Path p) =
