@@ -583,15 +583,6 @@ trace_polygons_maker initial_d poly_a poly_b =
 
 
 
-filterSplit : (a -> Bool) -> List a -> (List a, List a)
-filterSplit f list =
-  case list of
-    [] -> ([], [])
-    x::xs ->
-      if f x then
-        Tuple.mapFirst ((::) x) <| filterSplit f xs
-      else
-        Tuple.mapSecond ((::) x) <| filterSplit f xs
 
 determine_outline : List Polygon -> Maybe (Polygon, List Polygon)
 determine_outline p_list =
@@ -601,7 +592,7 @@ determine_outline p_list =
     p::ps ->
       let
         results = List.head p
-          |> Maybe.map (\pt -> filterSplit (\q -> point_inside_polygon pt q) ps)
+          |> Maybe.map (\pt -> List.partition (\q -> point_inside_polygon pt q) ps)
       in
         case results of
           Nothing -> Nothing
