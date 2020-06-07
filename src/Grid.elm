@@ -350,7 +350,39 @@ intersection a b =
       intersect_polygons a_poly b_poly
       |> Maybe.map (List.map Polygon)
 
+    (Composite a_outline a_holes, Composite b_outline b_holes) ->
+      let
+        new_outline = MaybeE.or
+          (intersect_polygons a_outline b_outline)
+          (get_inner a_outline b_outline |> Maybe.map List.singleton)
+
+        new_outline_formatted = new_outline |> Maybe.map (List.map (\o -> (o, [])))
+
+        remove_hole : Polygon -> List (Polygon, List Polygon) -> List (Polygon, List Polygon)
+        remove_hole hole =
+          let
+            convert_to_same = Either.unpack
+              (List.map (\x -> (x,[])))
+              (List.singleton)
+
+            map_func (x, hs) = complement_polygons x hole
+              |> Maybe.map convert_to_same
+              |> Maybe.withDefault [(x, hs)]
+          in
+            List.concatMap map_func
+
+        remove_all_holes : Maybe (List (Polygon, List Polygon)) -> Maybe (List (Polygon, List Polygon))
+        remove_all_holes outline =
+          List.foldl (\h -> Maybe.map (remove_hole h)) outline (a_holes ++ b_holes)
+
+      in
+        remove_all_holes new_outline_formatted
+          |> Maybe.map (List.map fromOutlineAndHoles)
+
     _ -> Nothing
+
+intersection_ : Shape -> Shape -> List Shape
+intersection_ a b = Maybe.withDefault [a, b] (intersection a b)
 
 
 -- If two shapes overlap, return the first minus the second; if not, return Nothing
