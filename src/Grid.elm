@@ -762,6 +762,9 @@ isHorizontal (p, q) =
     Nothing -> False
     Just m -> m == 0
 
+isVertical : Line -> Bool
+isVertical ((x1, y1), (x2, y2)) = x1 == x2 && y1 /= y2
+
 slope_intercept : Line -> Maybe (Float, Float)
 slope_intercept ((p_x, p_y), (q_x, q_y)) =
   if p_x == q_x then
@@ -835,7 +838,10 @@ point_inside_polygon (x,y) poly =
           |> Maybe.andThen check_x
 
     ends_on_horizontal ((p_x, p_y), (q_x, q_y)) =
-      p_y /= y && q_y == y && q_x >= x
+      let
+        (min_y, max_y) = (min p_y q_y, max p_y q_y)
+      in
+        min_y /= y && max_y == y && q_x >= x
 
     intersections = List.map intersects_horizontal shape_lines
 
