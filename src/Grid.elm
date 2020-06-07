@@ -356,14 +356,13 @@ intersection a b =
           (intersect_polygons a_outline b_outline)
           (get_inner a_outline b_outline |> Maybe.map List.singleton)
 
-        new_outline_formatted = new_outline |> Maybe.map (List.map (\o -> (o, [])))
+        format_as_tuples : List Polygon -> List (Polygon, List Polygon)
+        format_as_tuples = List.map (\o -> (o, []))
 
         remove_hole : Polygon -> List (Polygon, List Polygon) -> List (Polygon, List Polygon)
         remove_hole hole =
           let
-            convert_to_same = Either.unpack
-              (List.map (\x -> (x,[])))
-              (List.singleton)
+            convert_to_same = Either.unpack format_as_tuples List.singleton
 
             map_func (x, hs) = complement_polygons x hole
               |> Maybe.map convert_to_same
@@ -371,13 +370,14 @@ intersection a b =
           in
             List.concatMap map_func
 
-        remove_all_holes : Maybe (List (Polygon, List Polygon)) -> Maybe (List (Polygon, List Polygon))
+        remove_all_holes : List (Polygon, List Polygon) -> List (Polygon, List Polygon)
         remove_all_holes outline =
-          List.foldl (\h -> Maybe.map (remove_hole h)) outline (a_holes ++ b_holes)
+          List.foldl (\h -> remove_hole h) outline (a_holes ++ b_holes)
+
+        make_shapes = format_as_tuples >> remove_all_holes >> List.map fromOutlineAndHoles
 
       in
-        remove_all_holes new_outline_formatted
-          |> Maybe.map (List.map fromOutlineAndHoles)
+        Maybe.map make_shapes new_outline
 
     _ -> Nothing
 
