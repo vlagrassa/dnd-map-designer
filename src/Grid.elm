@@ -456,7 +456,23 @@ difference a b =
       in
         Maybe.map (List.map fromOutlineAndHoles) all_shapes
 
-    _ -> Nothing
+    -- TODO: This branch will return the original shape even if there is no overlap
+    (Composite a_outline a_holes, Composite b_outline b_holes) ->
+      let
+        (new_holes, new_pieces) = union_list b_outline a_holes
+
+        shapes_from_outline = remove_all_holes new_holes [(a_outline, [])]
+
+        shapes_from_holes = List.map (intersect_polygons a_outline) b_holes
+          |> MaybeE.values
+          |> List.concat
+          |> format_as_tuples
+          |> remove_all_holes a_holes
+
+        all_shapes = (++) shapes_from_holes shapes_from_outline
+
+      in
+        Just <| List.map fromOutlineAndHoles all_shapes
 
 
 difference_ : Shape -> Shape -> List Shape
