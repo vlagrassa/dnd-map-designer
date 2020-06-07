@@ -288,7 +288,8 @@ union a b =
   let
     make_holes outline holes =
       let
-        complements = List.map (\p -> complement_polygons p outline) holes |> MaybeE.values
+        map_func p = Maybe.withDefault (Either.Left [p]) (complement_polygons p outline)
+        complements = List.map map_func holes
       in
         List.foldl (\c acc -> Maybe.map2 (++) (leftToMaybe c) acc) (Just []) complements
 
