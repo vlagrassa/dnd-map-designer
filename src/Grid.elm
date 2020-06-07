@@ -441,25 +441,50 @@ trace_polygons_maker initial_d poly_a poly_b =
       else
         Nothing
 
-    entering_poly : Polygon -> Cycle Point -> Bool
-    entering_poly poly cyc =
+    -- Here, we want to determine whether the point currently selected in the cycle
+    -- is entering the polygon or leaving it - that is, if we keep going, do we end
+    -- up on the inside or the outside?
+    -- The idea is to step back through the cycle until we find a point that's not an
+    -- intersection -- one that's unambiguously inside or outside -- while keeping
+    -- track of how many intersection points we hit along the way.
+    -- Each time we go through another intersection point, we either enter or leave
+    -- the polygon, so we have to flip the answer each time.
+    entering_poly : List Point -> Polygon -> Cycle Point -> Bool
+    entering_poly sects poly cyc =
       case cyc of
+        -- There's not much to do if there's no cycle to begin with...
         Cycle.Empty -> False
         Cycle.Cycle _ start_pt _ ->
           let
             recurse b curr_cyc =
+
+              -- This is a convoluted way of getting the next element, but we do it
+              -- so we don't have to go back and shift the cycle again later
+              -- Saves on time if the cycle is at the end, so we don't have to loop
+              -- all the way back to the beginning twice
               let
                 shifted_cyc = Cycle.stepBackward curr_cyc
               in
                 case Cycle.current shifted_cyc of
+
+                  -- This possibility is ruled out when we check that the cycle is
+                  -- non-empty, but Cycle.current doesn't know that
                   Nothing -> False
                   Just pt ->
+
+                    -- Bottom out if we've looped all the way around to the beginning
                     if pt == start_pt then
                       False
-                    else if (point_inside_polygon pt poly) then
+
+                    -- Every time we go through an intersection, we have to alternate
+                    else if (List.member pt sects) then
                       recurse (not b) shifted_cyc
+
+                    -- Once we've finally reached a point unambiguously inside/outside the
+                    -- other polygon, combine it with the number of times we've gone through
+                    -- an intersection point for the final answer
                     else
-                      b
+                      (if b then not else identity) <| point_inside_polygon pt poly
           in
             recurse True cyc
 
@@ -467,7 +492,7 @@ trace_polygons_maker initial_d poly_a poly_b =
     valid_start sects poly cyc =
       case Cycle.current cyc of
         Just curr ->
-          List.member curr sects && entering_poly poly cyc
+          List.member curr sects && entering_poly sects poly cyc
         Nothing -> False
 
   in
