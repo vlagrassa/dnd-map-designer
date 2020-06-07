@@ -384,14 +384,77 @@ intersection_ a b = Maybe.withDefault [a, b] (intersection a b)
 -- If two shapes overlap, return the first minus the second; if not, return Nothing
 difference : Shape -> Shape -> Maybe (List Shape)
 difference a b =
+  let
+    -- Convert the two possible outputs of a difference into shapes
+    handle_indents = List.map Polygon
+    handle_hole    = List.singleton << fromOutlineAndHoles
+
+    -- Convert either output of a difference into shapes
+    make_shapes = Either.unpack handle_indents handle_hole
+
+    format_as_tuples = List.map (\o -> (o, []))
+    convert_to_same = Either.unpack format_as_tuples List.singleton
+
+    transform_acc c (cs, acc, byproducts) = case union_polygons c acc of
+      Nothing -> (c::cs, acc, byproducts)
+      Just (new_acc, new_byproducts) -> (cs, new_acc, new_byproducts ++ byproducts)
+
+    append_acc (cs, acc, byproducts) = (acc :: cs, byproducts)
+
+    union_list new_shape list =
+      List.foldl transform_acc ([], new_shape, []) list |> append_acc
+
+    outline_map_func hole outline =
+      case difference_polygons outline hole of
+        Just (Left new_outline) -> new_outline
+        _ -> [outline]
+
+    outline_fold_func hole outlines = List.concatMap (outline_map_func hole) outlines
+
+    make_outline : Polygon -> List Polygon -> List Polygon
+    make_outline outline = List.foldl outline_fold_func [outline]
+
+    remove_hole : Polygon -> List (Polygon, List Polygon) -> List (Polygon, List Polygon)
+    remove_hole hole =
+      let
+        map_func (x, hs) = difference_polygons x hole
+          |> Maybe.map convert_to_same
+          |> Maybe.withDefault [(x, hs)]
+      in
+        List.concatMap map_func
+
+    remove_all_holes : List Polygon -> List (Polygon, List Polygon) -> List (Polygon, List Polygon)
+    remove_all_holes holes outline = List.foldl (\h -> remove_hole h) outline holes
+
+  in
   case (a, b) of
     (Polygon a_poly, Polygon b_poly) ->
+      Maybe.map make_shapes <| difference_polygons a_poly b_poly
+
+    (Composite a_outline a_holes, Polygon b_poly) ->
       let
-        polys = (difference_polygons a_poly b_poly)
-        handle_indents = List.map Polygon
-        handle_hole    = List.singleton << fromOutlineAndHoles
+        (new_holes, new_pieces) = union_list b_poly a_holes
+
+        new_shapes = new_pieces |> List.concatMap (intersect_polygons_ a_outline)
+
+        new_outline = make_outline a_outline new_holes
       in
-        Maybe.map (Either.unpack handle_indents handle_hole) polys
+        Just (List.map Polygon <| new_shapes ++ new_outline)
+
+    (Polygon a_poly, Composite b_outline b_holes) ->
+      let
+        shapes_from_outline = difference_polygons a_poly b_outline
+          |> Maybe.map convert_to_same
+
+        shapes_from_holes = List.map (intersect_polygons a_poly) b_holes
+          |> MaybeE.values
+          |> List.concat
+          |> format_as_tuples
+
+        all_shapes = Maybe.map ((++) shapes_from_holes) shapes_from_outline
+
+      in
+        Maybe.map (List.map fromOutlineAndHoles) all_shapes
 
     _ -> Nothing
 
@@ -656,6 +719,10 @@ intersect_polygons poly_a poly_b =
       [ \() -> make_trace poly_a corrected_b
       , \() -> take_inner poly_a poly_b
       ]
+
+
+intersect_polygons_ : Polygon -> Polygon -> List Polygon
+intersect_polygons_ poly_a poly_b = Maybe.withDefault [poly_a, poly_b] (intersect_polygons poly_a poly_b)
 
 
 -- LEFT:  Indentations
