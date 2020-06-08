@@ -18,6 +18,7 @@ import Color exposing (Color)
 
 import Grid
 import Tool
+import Stack
 
 -- Main Stuff --------------------------------------------------------
 
@@ -41,6 +42,8 @@ type alias Model =
   , editState : Bool
   , mouseDown : Bool
   , tool : Tool.Tool
+  , undoStack : Stack.Stack (List Grid.Shape, List Grid.Path)
+  , redoStack : Stack.Stack (List Grid.Shape, List Grid.Path)
   }
 
 type alias Coordinate = { x:Int, y:Int }
@@ -52,6 +55,8 @@ type Msg
   | MouseUpDown Bool
   | SwitchTool Tool.Tool
   | ClearBoard
+  | Undo
+  | Redo
 
 type alias Flags = ()
 
@@ -86,6 +91,8 @@ initModel =
   , editState = True
   , mouseDown = False
   , tool = Tool.FreeformPen
+  , undoStack = Stack.empty 5
+  , redoStack = Stack.empty 5
   }
 
 
@@ -157,15 +164,18 @@ update msg model = case msg of
                   , ground =
                       add_ground (Grid.pathToShape model.currentDrawing)
                                  model.ground
-                  , currentDrawing = Grid.Path [] }, Cmd.none )
+                  , currentDrawing = Grid.Path []
+                  , undoStack = Stack.push (model.ground, model.walls) model.undoStack }, Cmd.none )
       non_autofill =
         ( { model | mouseDown = b
                   , walls = add_wall model.currentDrawing model.walls
-                  , currentDrawing = Grid.Path [] }, Cmd.none )
+                  , currentDrawing = Grid.Path []
+                  , undoStack = Stack.push (model.ground, model.walls) model.undoStack }, Cmd.none )
       rect =
         ( { model | mouseDown = b
                   , ground = add_ground model.currentRect model.ground
-                  , currentRect = Grid.Polygon [] }, Cmd.none)
+                  , currentRect = Grid.Polygon []
+                  , undoStack = Stack.push (model.ground, model.walls) model.undoStack }, Cmd.none)
     in
        case (model.tool,b) of
          (Tool.LockedAutofill, False) -> autofill
@@ -178,6 +188,24 @@ update msg model = case msg of
   SwitchTool t -> ( { model | tool = t }, Cmd.none )
 
   ClearBoard -> ( { model | ground = [], walls = [] }, Cmd.none )
+
+  Undo ->
+    case Stack.pop model.undoStack of
+      Just ((prev_g, prev_w), rest) ->
+        ( { model | redoStack = Stack.push (model.ground, model.walls) model.redoStack
+                  , ground = prev_g
+                  , walls = prev_w
+                  , undoStack = rest }, Cmd.none )
+      Nothing -> ( model, Cmd.none )
+
+  Redo ->
+    case Stack.pop model.redoStack of
+      Just ((redo_g, redo_w), rest) ->
+        ( { model | undoStack = Stack.push (model.ground, model.walls) model.undoStack
+                  , ground = redo_g
+                  , walls = redo_w
+                  , redoStack = rest }, Cmd.none )
+      Nothing -> ( model, Cmd.none )
 
 
 
@@ -208,8 +236,10 @@ view model =
             |> List.map (\f -> f model)
             |> C.group
             |> R.svg
-    clear = Html.button [ onClick ClearBoard, Attr.style "margin-left" "5px" ] [ Html.text "Clear" ]
-    tools = Html.select [ Attr.style "margin-right" "5px" ] Tool.toolOptions
+    clear = Html.button [ onClick ClearBoard, Attr.style "margin-left" "8px" ] [ Html.text "Clear" ]
+    tools = Html.select [ Attr.style "margin" "2px" ] Tool.toolOptions
+    undo = Html.button [ onClick Undo, Attr.style "margin-right" "5px" ] [ Html.text "Undo" ]
+    redo = Html.button [ onClick Redo, Attr.style "margin-right" "8px" ] [ Html.text "Redo" ]
   in
     Html.div []
         [ Html.h3 [ Attr.align "center"
@@ -222,7 +252,7 @@ view model =
                                       Nothing -> SwitchTool Tool.FreeformPen)
                    , Attr.align "center"
                    , Attr.style "margin-bottom" "15px" ]
-                   (if model.editState then [ tools, clear ] else [])
+                   (if model.editState then [ undo, redo, tools, clear ] else [])
         , Html.div [ Attr.align "center"
                    , Attr.id "map_canvas_container"
                    , Attr.style "display" (if model.editState then "block" else "none") ]
@@ -287,9 +317,10 @@ draw_paths model =
       col = Color.rgb255 135 130 124
       testlineStyle = (\t -> C.broken [ (5*t,t), (9*t,t), (4*t,t),(6*t,t) ] ((toFloat t)*2.2) (C.uniform col))
       style = C.solid C.verythick (C.uniform Color.darkBrown)
+      ugh = { line_style | thickness = 80 }
   in
       path_to_collage line_style model.currentDrawing
-        :: (List.map (path_to_collage line_style) model.walls) 
+        :: (List.map (path_to_collage line_style ) model.walls) 
             |> C.group
 
 draw_mouse : Model -> C.Collage Msg
