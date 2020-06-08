@@ -53,6 +53,11 @@ type Msg
   | MouseUpDown Bool
   | SwitchTool Tool.Tool
   | ClearBoard
+  | RequestMapNames
+  | MapNames (List String)
+  | RequestMap String
+  | LoadMap (Maybe Grid.Shape)
+  | UploadMap Encode.Value
 
 type alias Flags = ()
 
@@ -66,6 +71,14 @@ port receiveMouseMove : ((Maybe Coordinate) -> msg) -> Sub msg
 port receiveMouseUpDown : (Bool -> msg) -> Sub msg
 
 port sendEditState : Bool -> Cmd msg
+
+port uploadMap : Encode.Value -> Cmd msg
+
+port requestMapNames : () -> Cmd msg
+port receiveMapNames : (List String -> msg) -> Sub msg
+
+port requestMap : String -> Cmd msg
+port receiveMap : (Encode.Value -> msg) -> Sub msg
 
 
 
@@ -95,7 +108,9 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
   Sub.batch
     [ receiveMouseMove MouseMove
-    , receiveMouseUpDown MouseUpDown]
+    , receiveMouseUpDown MouseUpDown
+    , receiveMapNames MapNames
+    ]
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
@@ -200,6 +215,22 @@ update msg model = case msg of
   SwitchTool t -> ( { model | tool = t }, Cmd.none )
 
   ClearBoard -> ( { model | ground = [], walls = [] }, Cmd.none )
+
+
+  RequestMapNames ->
+    (model, requestMapNames ())
+
+  RequestMap name ->
+    (model, requestMap name)
+
+  MapNames names ->
+    (model, Cmd.none)
+
+  LoadMap map ->
+    (model, Cmd.none)
+
+  UploadMap map ->
+    (model, uploadMap map)
 
 
 
