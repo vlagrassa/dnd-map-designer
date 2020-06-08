@@ -36,6 +36,8 @@ type alias Model =
   , mapWidth : Int
   , ground : List Grid.Shape
   , walls  : List Grid.Path
+  , currentDrawing : Grid.Path
+  , currentRect : Grid.Shape
   , editState : Bool
   , mouseDown : Bool
   , tool : Tool.Tool
@@ -79,6 +81,8 @@ initModel =
   , mapWidth = 25
   , ground = [ ]
   , walls = [ ]
+  , currentDrawing = Grid.Path [ ]
+  , currentRect = Grid.Polygon []
   , editState = True
   , mouseDown = False
   , tool = Tool.FreeformPen
@@ -108,56 +112,35 @@ update msg model = case msg of
                  Tool.FreeformPen -> jsToGrid model
                  _ -> jsToGridLocked model
       ml = model.mouseLocation
-      ws = model.walls
-      g = model.ground
-      t = model.tool
+      cur = model.currentDrawing
+      cur_r = model.currentRect
     in
       ( { model | mouseLocation = coord
-
-                , walls = -- update walls for drawing paths and incomplete shapes
-                   case t of
-
-                    Tool.Line ->
-                      if model.mouseDown
-                      then case (ws, ml) of
-                        ([], Just loc) ->
-                          [ Grid.makeLinePts (toGrid loc) (toGrid loc) ]
-                        (hd::tl, Just loc) ->
-                          case (Grid.lineOrigin hd) of
-                            Just o ->
-                              (Grid.makeLinePts o (toGrid loc))::tl
-                            Nothing ->
-                              (Grid.makeLinePts (toGrid loc) (toGrid loc))::ws
-                        _ -> ws
-                      else ws
-
-                    Tool.Rectangle -> ws
-
-                    _ -> if model.mouseDown
-                         then case (ws, ml) of
-                               ([], Just loc) ->
-                                  [ Grid.Path [(toGrid loc)] ]
-                               (hd::tl, Just loc) ->
-                                  (Grid.addPointPath (toGrid loc) hd)::tl
-                               _ -> ws
-                         else ws
-
-                , ground = -- update ground for drawing rectangles
-                   case t of
-                    Tool.Rectangle ->
-                      if model.mouseDown
-                      then case (g, ml) of
-                             ([], Just loc) ->
-                                [Grid.makeRectDims (toGrid loc) 0 0]
-                             (hd::tl, Just loc) ->
-                                case (Grid.rectOrigin hd) of
-                                  Just o ->
-                                     (Grid.rach_makeRectPts o (toGrid loc))::tl
-                                  Nothing ->
-                                     (Grid.makeRectDims (toGrid loc) 0 0)::g
-                             _ -> g
-                      else g
-                    _ -> g }, Cmd.none )
+                , currentDrawing =
+                    case model.tool of
+                      Tool.Line ->
+                        if model.mouseDown
+                        then case (Grid.lineOrigin cur, ml) of
+                          (Just o, Just loc) -> Grid.makeLinePts o (toGrid loc)
+                          (Nothing, Just loc) -> Grid.makeLinePts (toGrid loc) (toGrid loc)
+                          _ -> cur
+                        else cur
+                      Tool.Rectangle -> cur
+                      _ -> if model.mouseDown
+                           then case ml of
+                             Just loc -> Grid.addPointPath (toGrid loc) cur
+                             Nothing -> cur
+                           else cur
+                , currentRect =
+                    case model.tool of
+                      Tool.Rectangle ->
+                        if model.mouseDown
+                        then case (Grid.rectOrigin cur_r, ml) of
+                          (Just o, Just loc) -> Grid.rach_makeRectPts o (toGrid loc)
+                          (Nothing, Just loc) -> Grid.makeRectDims (toGrid loc) 0 0
+                          _ -> cur_r
+                        else cur_r
+                      _ -> cur_r }, Cmd.none )
 
   -- SwitchState handles switching between edit mode and save image mode
   SwitchState ->
@@ -169,28 +152,26 @@ update msg model = case msg of
   -- MouseUpDown handles finishing shapes
   MouseUpDown b ->
     let
-      autofill = 
+      autofill =
         ( { model | mouseDown = b
-                  -- take the unfinished shape from beginning of walls
-                  -- and completes it and adds it to ground and remove
-                  -- it from walls; also add empty shape to walls
-                  , ground = case model.walls of
-                              [] -> model.ground
-                              hd::tl -> (Grid.pathToShape hd) :: model.ground
-                  , walls = case model.walls of
-                              [] -> model.walls
-                              hd::tl -> (Grid.Path []) :: tl }, Cmd.none )
-     in
-       -- only complete unfinished shape if mouseup, add an empty shape to
-       -- ground for rectangle tool and walls for pen tools
+                  , ground =
+                      add_ground (Grid.pathToShape model.currentDrawing)
+                                 model.ground
+                  , currentDrawing = Grid.Path [] }, Cmd.none )
+      non_autofill =
+        ( { model | mouseDown = b
+                  , walls = add_wall model.currentDrawing model.walls
+                  , currentDrawing = Grid.Path [] }, Cmd.none )
+      rect =
+        ( { model | mouseDown = b
+                  , ground = add_ground model.currentRect model.ground
+                  , currentRect = Grid.Polygon [] }, Cmd.none)
+    in
        case (model.tool,b) of
          (Tool.LockedAutofill, False) -> autofill
          (Tool.FreeformAutofill, False) -> autofill
-         (Tool.Rectangle, False) ->
-              ( { model | mouseDown = b
-                        , ground = (Grid.Polygon []) :: model.ground }, Cmd.none )
-         (_, False) -> ( { model | mouseDown = b
-                                 , walls = (Grid.Path []) :: model.walls }, Cmd.none )
+         (Tool.Rectangle, False) -> rect
+         (_, False) -> non_autofill
          _ -> ( { model | mouseDown = b }, Cmd.none )
   
   -- SwitchTool handles switching between tools
@@ -295,7 +276,9 @@ draw_ground model =
     fill_style = C.uniform (Color.rgba 1 1 1 0.5)
     line_style = C.solid C.thick (C.uniform Color.black)
   in
-    List.map (shape_to_collage (fill_style, line_style)) model.ground |> C.group
+    shape_to_collage (fill_style, line_style) model.currentRect
+      :: List.map (shape_to_collage (fill_style, line_style)) model.ground 
+           |> C.group
 
 draw_paths : Model -> C.Collage Msg
 draw_paths model =
@@ -305,7 +288,9 @@ draw_paths model =
       testlineStyle = (\t -> C.broken [ (5*t,t), (9*t,t), (4*t,t),(6*t,t) ] ((toFloat t)*2.2) (C.uniform col))
       style = C.solid C.verythick (C.uniform Color.darkBrown)
   in
-      List.map (path_to_collage line_style) model.walls |> C.group
+      path_to_collage line_style model.currentDrawing
+        :: (List.map (path_to_collage line_style) model.walls) 
+            |> C.group
 
 draw_mouse : Model -> C.Collage Msg
 draw_mouse model =
@@ -459,9 +444,9 @@ add_ground new_shape shape_list =
         Nothing -> head :: add_ground new_shape tail
         Just u  -> add_ground u tail
 
-add_wall : Grid.Path -> Model -> Model
-add_wall path model =
-  { model | walls = path :: model.walls }
+add_wall : Grid.Path -> List Grid.Path -> List Grid.Path
+add_wall path path_list =
+  path :: path_list
 
 
 remove_ground_model : Grid.Shape -> Model -> Model

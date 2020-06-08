@@ -28,7 +28,7 @@ addPointToShape : Point -> Shape -> Shape
 addPointToShape point s =
   case s of
     Polygon p -> point::p |> Polygon
-    Composite outside holes -> s
+    Composite outside holes -> addPointToShape point (Polygon outside)
 
 
 addPointPath : Point -> Path -> Path
@@ -54,7 +54,7 @@ rectOrigin s =
           if ((List.length p) == 4) then Just point
           else Nothing
         Nothing -> Nothing
-    Composite outside holes -> Nothing
+    Composite outside holes -> rectOrigin (Polygon outside)
 
 lineOrigin : Path -> Maybe Point
 lineOrigin (Path l) =
