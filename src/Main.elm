@@ -44,6 +44,7 @@ type alias Model =
   , tool : Tool.Tool
   , undoStack : Stack.Stack (List Grid.Shape, List Grid.Path)
   , redoStack : Stack.Stack (List Grid.Shape, List Grid.Path)
+  , erasing : Bool
   }
 
 type alias Coordinate = { x:Int, y:Int }
@@ -57,6 +58,8 @@ type Msg
   | ClearBoard
   | Undo
   | Redo
+  | ToggleErasing
+  | Download
 
 type alias Flags = ()
 
@@ -71,6 +74,10 @@ port receiveMouseUpDown : (Bool -> msg) -> Sub msg
 
 port sendEditState : Bool -> Cmd msg
 
+port sendRedraw : Bool -> Cmd msg
+
+port sendDownload : Bool -> Cmd msg
+
 
 
 
@@ -82,8 +89,8 @@ init () = (initModel, Cmd.none)
 initModel : Model
 initModel = 
   { mouseLocation = Nothing
-  , mapHeight = 20
-  , mapWidth = 25
+  , mapHeight = 10
+  , mapWidth = 15
   , ground = [ ]
   , walls = [ ]
   , currentDrawing = Grid.Path [ ]
@@ -93,6 +100,7 @@ initModel =
   , tool = Tool.FreeformPen
   , undoStack = Stack.empty 5
   , redoStack = Stack.empty 5
+  , erasing = False
   }
 
 
@@ -156,43 +164,62 @@ update msg model = case msg of
     else
       ( { model | editState = True }, sendEditState True )
 
+  Download ->
+    ( model, sendDownload True )
+
   -- MouseUpDown handles finishing shapes
   MouseUpDown b ->
     let
       autofill =
         ( { model | mouseDown = b
                   , ground =
-                      add_ground (Grid.pathToShape model.currentDrawing)
-                                 model.ground
+                      case model.erasing of
+                        False ->
+                          add_ground (Grid.pathToShape model.currentDrawing) model.ground
+                        True ->
+                          remove_ground (Grid.pathToShape model.currentDrawing) model.ground
                   , currentDrawing = Grid.Path []
                   , undoStack = Stack.push (model.ground, model.walls) model.undoStack }, Cmd.none )
       non_autofill =
         ( { model | mouseDown = b
-                  , walls = add_wall model.currentDrawing model.walls
+                  , walls = 
+                      case model.erasing of
+                        False -> add_wall model.currentDrawing model.walls
+                        True -> remove_wall model.currentDrawing model.walls
                   , currentDrawing = Grid.Path []
                   , undoStack = Stack.push (model.ground, model.walls) model.undoStack }, Cmd.none )
       rect =
         ( { model | mouseDown = b
-                  , ground = add_ground model.currentRect model.ground
+                  , ground =
+                      case model.erasing of
+                        False -> add_ground model.currentRect model.ground
+                        True -> remove_ground model.currentRect model.ground
                   , currentRect = Grid.Polygon []
-                  , undoStack = Stack.push (model.ground, model.walls) model.undoStack }, Cmd.none)
+                  , undoStack = Stack.push (model.ground, model.walls) model.undoStack }, Cmd.none )
     in
        case (model.tool,b) of
          (Tool.LockedAutofill, False) -> autofill
          (Tool.FreeformAutofill, False) -> autofill
          (Tool.Rectangle, False) -> rect
          (_, False) -> non_autofill
-         _ -> ( { model | mouseDown = b }, Cmd.none )
+         _ -> ( { model | mouseDown = b
+                        , editState = True }, Cmd.none )
   
   -- SwitchTool handles switching between tools
-  SwitchTool t -> ( { model | tool = t }, Cmd.none )
+  SwitchTool t -> ( { model | editState = True
+                            , tool = t }, Cmd.none )
 
-  ClearBoard -> ( { model | ground = [], walls = [] }, Cmd.none )
+  ClearBoard -> ( { model | editState = True
+                          , ground = []
+                          , walls = []
+                          , undoStack = Stack.empty 5
+                          , redoStack = Stack.empty 5 }, Cmd.none )
 
   Undo ->
     case Stack.pop model.undoStack of
       Just ((prev_g, prev_w), rest) ->
-        ( { model | redoStack = Stack.push (model.ground, model.walls) model.redoStack
+        ( { model | editState = True
+                  , redoStack = Stack.push (model.ground, model.walls) model.redoStack
                   , ground = prev_g
                   , walls = prev_w
                   , undoStack = rest }, Cmd.none )
@@ -201,11 +228,17 @@ update msg model = case msg of
   Redo ->
     case Stack.pop model.redoStack of
       Just ((redo_g, redo_w), rest) ->
-        ( { model | undoStack = Stack.push (model.ground, model.walls) model.undoStack
+        ( { model | editState = True
+                  , undoStack = Stack.push (model.ground, model.walls) model.undoStack
                   , ground = redo_g
                   , walls = redo_w
                   , redoStack = rest }, Cmd.none )
       Nothing -> ( model, Cmd.none )
+  
+  ToggleErasing ->
+    ( { model | erasing = case model.erasing of
+                            True -> False
+                            False -> True }, Cmd.none )
 
 
 
@@ -226,12 +259,16 @@ button_attributes = [ Attr.style "margin" "0 auto"
                     , Attr.style "display" "block"
                     , Attr.style "margin-top" "15px" ]
 
+blah : Bool -> String
+blah b =
+  case b of
+    True -> "True"
+    False -> "False"
 
 view : Model -> Html Msg
 view model =
   let
     msg = "DND Map Designer Studio Suite Lite"
-    save_msg = "Right click and select \"Save Image As...\" to save"
     map = [draw_mouse, draw_paths, draw_ground, draw_grid, draw_bg]
             |> List.map (\f -> f model)
             |> C.group
@@ -240,6 +277,7 @@ view model =
     tools = Html.select [ Attr.style "margin" "2px" ] Tool.toolOptions
     undo = Html.button [ onClick Undo, Attr.style "margin-right" "5px" ] [ Html.text "Undo" ]
     redo = Html.button [ onClick Redo, Attr.style "margin-right" "8px" ] [ Html.text "Redo" ]
+    eraser = Html.button [ onClick ToggleErasing, Attr.style "margin-left" "5px" ] [Html.text (blah model.erasing) ]
   in
     Html.div []
         [ Html.h3 [ Attr.align "center"
@@ -252,21 +290,19 @@ view model =
                                       Nothing -> SwitchTool Tool.FreeformPen)
                    , Attr.align "center"
                    , Attr.style "margin-bottom" "15px" ]
-                   (if model.editState then [ undo, redo, tools, clear ] else [])
+                   [ undo, redo, tools, clear ]
         , Html.div [ Attr.align "center"
                    , Attr.id "map_canvas_container"
-                   , Attr.style "display" (if model.editState then "block" else "none") ]
+                   , Attr.style "display" (if model.editState then "block" else "block") ]
                    [ map ]
         , Html.canvas
-            ( [Attr.style "display" (if model.editState then "none" else "block")]
+            ( [Attr.style "display" (if model.editState then "none" else "none")]
                 ++ (canvas_attributes model) ) [ ]
-        , Html.button ( (onClick SwitchState) :: button_attributes )
-                      [ Html.text (if model.editState then "Save" else "Edit") ]
-        , Html.div [ Attr.align "center"
-                   , Attr.style "margin-top" "15px"
-                   , Attr.style "color" "#F7F9F9"
-                   , Attr.style "font-family" "Optima, sans-serif" ]
-                   (if model.editState then [] else [ Html.text save_msg ]) ]
+        , (if model.editState
+          then Html.button ( (onClick SwitchState) :: button_attributes )
+                           [ Html.text "Save as Image" ]
+          else Html.button ( (onClick Download) :: button_attributes )
+                           [ Html.text "Download" ]) ]
 
 
 -- Drawing Map Objects -----------------------------------------------
@@ -318,9 +354,11 @@ draw_paths model =
       testlineStyle = (\t -> C.broken [ (5*t,t), (9*t,t), (4*t,t),(6*t,t) ] ((toFloat t)*2.2) (C.uniform col))
       style = C.solid C.verythick (C.uniform Color.darkBrown)
       ugh = { line_style | thickness = 80 }
+      dotstyle = C.broken [ (5, 2), (15, 2) ] 5 (C.uniform Color.darkBrown)
+      hedge = C.dot 5 (C.uniform Color.darkGreen)
   in
-      path_to_collage line_style model.currentDrawing
-        :: (List.map (path_to_collage line_style ) model.walls) 
+      path_to_collage hedge model.currentDrawing
+        :: (List.map (path_to_collage dotstyle ) model.walls) 
             |> C.group
 
 draw_mouse : Model -> C.Collage Msg
@@ -487,11 +525,11 @@ remove_ground_model shape model =
 remove_ground : Grid.Shape -> List Grid.Shape -> List Grid.Shape
 remove_ground shape shape_list =
   case shape_list of
-    [] -> []
+    [] -> Debug.log "rm ground 1" []
     head::tail ->
       case Grid.difference head shape of
-        Nothing -> head :: remove_ground shape shape_list
-        Just d  -> d ++ (remove_ground shape shape_list )
+        Nothing -> Debug.log "rm ground 2"  head :: remove_ground shape shape_list
+        Just d  -> Debug.log "rm ground 3" d ++ (remove_ground shape shape_list )
 
-remove_wall : Grid.Path -> Model -> Model
-remove_wall path model = model
+remove_wall : Grid.Path -> List Grid.Path -> List Grid.Path
+remove_wall path path_list = path_list

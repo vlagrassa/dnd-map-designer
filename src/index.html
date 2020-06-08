@@ -41,12 +41,24 @@
 				app.ports.receiveMouseUpDown.send(false);
 		  });
 
+			initializeCanvas();
 
 			// Draw map onto canvas item when save button is clicked
 			app.ports.sendEditState.subscribe(function(state) {
-				
 				if (!state) {
-					
+				  initializeCanvas();	
+			  }
+		  });
+
+			// Draw map onto canvas again because js is annoying and then download
+			app.ports.sendDownload.subscribe(function(b) {
+      	if (b) {
+					initializeCanvas();
+					putImage();
+				}
+			});
+
+			function initializeCanvas() {
 					// Locate the SVG element storing the map again in case it
 					// has been changed
 					var mysvg = document.getElementById('map_canvas_container');
@@ -61,10 +73,16 @@
 					var svgAsXML = (new XMLSerializer).serializeToString( mysvg );
 					img.src = 'data:image/svg+xml,' + encodeURIComponent( svgAsXML );
 					ctx.drawImage(img, 0, 0);
+	  	}
 
-			  }
+			function putImage() {
+					// Load canvas, converg SVG to Image, draw Image onto canvas
+					var canvas = document.getElementById("myCanvas");
 
-		  });
+				 	var image = canvas.toDataURL("image/png").replace("image/png", "image/octet-stream");
+				 	window.location.href=image;
+			}
+
 
     </script>
   </body>
