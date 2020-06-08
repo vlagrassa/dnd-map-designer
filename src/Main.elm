@@ -17,7 +17,10 @@ import Collage.Render as R
 import Color exposing (Color)
 
 import Grid
+import Grid.Json
 import Tool
+
+import Json.Encode as Encode
 
 -- Main Stuff --------------------------------------------------------
 
@@ -479,3 +482,26 @@ remove_ground shape shape_list =
 
 remove_wall : Grid.Path -> Model -> Model
 remove_wall path model = model
+
+
+
+
+-- Interacting with the Database -------------------------------------
+
+-- Convert the current map into an object that can be saved to the database
+-- Stores the following fields:
+--    - Ground
+--    - Walls
+encode_model : Model -> Encode.Value
+encode_model model =
+  let
+    -- The different features of the map, encoded
+    ground = Encode.list Grid.Json.encodeShape model.ground
+    walls  = Encode.list Grid.Json.encodePath  model.walls
+
+    -- The features of the map packaged together
+    map = Encode.object [ ("ground", ground), ("walls",  walls)]
+
+  in
+    -- The two top-level fields are the name to save it under and the map data
+    Encode.object [ ("name", Encode.string "test_map"), ("map", map) ]
