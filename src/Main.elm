@@ -16,6 +16,8 @@ import Collage.Events as E
 import Collage.Render as R
 import Color exposing (Color)
 
+import SingleSlider
+
 import Grid
 import Tool
 import Stack
@@ -45,6 +47,8 @@ type alias Model =
   , undoStack : Stack.Stack (List Grid.Shape, List Grid.Path)
   , redoStack : Stack.Stack (List Grid.Shape, List Grid.Path)
   , erasing : Bool
+  , widthSlider : SingleSlider.SingleSlider Msg
+  , heightSlider : SingleSlider.SingleSlider Msg
   }
 
 type alias Coordinate = { x:Int, y:Int }
@@ -60,6 +64,8 @@ type Msg
   | Redo
   | ToggleErasing
   | Download
+  | WidthSliderChange Float
+  | HeightSliderChange Float
 
 type alias Flags = ()
 
@@ -74,8 +80,6 @@ port receiveMouseUpDown : (Bool -> msg) -> Sub msg
 
 port sendEditState : Bool -> Cmd msg
 
-port sendRedraw : Bool -> Cmd msg
-
 port sendDownload : Bool -> Cmd msg
 
 
@@ -89,8 +93,8 @@ init () = (initModel, Cmd.none)
 initModel : Model
 initModel = 
   { mouseLocation = Nothing
-  , mapHeight = 10
-  , mapWidth = 15
+  , mapHeight = 15
+  , mapWidth = 20
   , ground = [ ]
   , walls = [ ]
   , currentDrawing = Grid.Path [ ]
@@ -101,6 +105,25 @@ initModel =
   , undoStack = Stack.empty 5
   , redoStack = Stack.empty 5
   , erasing = False
+  , widthSlider = SingleSlider.init
+                    { min = 1
+                    , max = 50
+                    , value = 20
+                    , step = 1
+                    , onChange = WidthSliderChange
+                    }
+                    |> SingleSlider.withMinFormatter (\val -> "")
+                    |> SingleSlider.withMaxFormatter (\val -> "")
+                    |> SingleSlider.withValueFormatter (\x y -> "")
+  , heightSlider = SingleSlider.init
+                    { min = 1
+                    , max = 50
+                    , value = 15
+                    , step = 1
+                    , onChange = HeightSliderChange }
+                    |> SingleSlider.withMinFormatter (\val -> "")
+                    |> SingleSlider.withMaxFormatter (\val -> "")
+                    |> SingleSlider.withValueFormatter (\x y -> "")
   }
 
 
@@ -240,6 +263,20 @@ update msg model = case msg of
                             True -> False
                             False -> True }, Cmd.none )
 
+  WidthSliderChange str ->
+    let
+        newSlider = SingleSlider.update str model.widthSlider
+    in
+        ( { model | widthSlider = newSlider
+                  , mapWidth = round (SingleSlider.fetchValue model.widthSlider) }, Cmd.none )
+
+  HeightSliderChange str ->
+    let
+        newSlider = SingleSlider.update str model.heightSlider
+    in
+        ( { model | heightSlider = newSlider
+                  , mapHeight = round (SingleSlider.fetchValue model.heightSlider) }, Cmd.none )
+
 
 
 
@@ -285,6 +322,9 @@ view model =
                   , Attr.style "font" "25px Optima, sans-serif"
                   , Attr.style "color" "#F7F9F9" ]
                   [ Html.text msg, Html.sup [ ] [ Html.text "TM"] ]
+        , Html.div [ Attr.align "center"
+                   , Attr.style "margin-bottom" "10px" ]
+                   [ SingleSlider.view model.widthSlider, SingleSlider.view model.heightSlider ]
         , Html.div [ onInput (\s -> case Tool.toTool s of
                                       Just t -> SwitchTool t
                                       Nothing -> SwitchTool Tool.FreeformPen)
@@ -302,7 +342,8 @@ view model =
           then Html.button ( (onClick SwitchState) :: button_attributes )
                            [ Html.text "Save as Image" ]
           else Html.button ( (onClick Download) :: button_attributes )
-                           [ Html.text "Download" ]) ]
+                           [ Html.text "Download" ])
+        ]
 
 
 -- Drawing Map Objects -----------------------------------------------
