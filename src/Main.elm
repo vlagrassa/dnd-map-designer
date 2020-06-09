@@ -420,8 +420,8 @@ draw_paths model =
       dotstyle = C.broken [ (5, 2), (15, 2) ] 5 (C.uniform Color.darkBrown)
       hedge = C.dot 5 (C.uniform Color.darkGreen)
   in
-      path_to_collage hedge model.currentDrawing
-        :: (List.map (path_to_collage dotstyle ) model.walls) 
+      path_to_collage line_style model.currentDrawing
+        :: (List.map (path_to_collage line_style) model.walls) 
             |> C.group
 
 draw_mouse : Model -> C.Collage Msg
