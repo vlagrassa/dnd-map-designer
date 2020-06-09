@@ -58,6 +58,7 @@ type alias Model =
   , erasing : Bool
   , widthSlider : SingleSlider.SingleSlider Msg
   , heightSlider : SingleSlider.SingleSlider Msg
+  , mapName : String
   }
 
 type alias Coordinate = { x:Int, y:Int }
@@ -89,6 +90,7 @@ type Msg
   | Download
   | WidthSliderChange Float
   | HeightSliderChange Float
+  | MapName String
 
 type alias Flags = ()
 
@@ -142,6 +144,7 @@ initModel =
   , erasing = False
   , widthSlider = new_w_slider 1 20
   , heightSlider = new_h_slider 1 15
+  , mapName = ""
   }
 
 
@@ -363,7 +366,10 @@ update msg model = case msg of
     (model, uploadMap map)
 
   LoadGalleryMap map ->
-    ( {model | ground = map.ground, walls = map.walls }, Cmd.none)
+    ( {model | ground = map.ground, walls = map.walls, mapName = map.name }, Cmd.none)
+
+  MapName str ->
+    ( { model | mapName = str }, Cmd.none)
 
 
 
@@ -404,12 +410,21 @@ view model =
     undo = Html.button [ onClick Undo, Attr.style "margin-right" "5px" ] [ Html.text "Undo" ]
     redo = Html.button [ onClick Redo, Attr.style "margin-right" "8px" ] [ Html.text "Redo" ]
     eraser = Html.button [ onClick ToggleErasing, Attr.style "margin-left" "5px" ] [Html.text (blah model.erasing) ]
+    downloadButton =
+      (if model.editState
+        then Html.button ( (onClick SwitchState) :: button_attributes )
+                         [ Html.text "Save as Image" ]
+        else Html.button ( (onClick Download) :: button_attributes )
+                         [ Html.text "Download" ])
     savebar =
-      Html.div [ Attr.align "center" ]
-               [ Html.button [ onClick RequestMapNames ] [Html.text "Request Map Names"]
-               , Html.button [ onClick <| RequestMap "test_map"] [Html.text "Request Map"]
-               , Html.button [ onClick <| UploadMap (encode_model model) ] [Html.text "Upload"]
-               ]
+      Html.div
+        [ Attr.align "center"
+        , Attr.css [{-Css.position Css.absolute,-} Css.bottom (Css.px 5)]
+        ]
+        [ Html.input [ Attr.value model.mapName, onInput MapName ] []
+        , Html.button ((onClick <| UploadMap (encode_model model)) :: button_attributes) [Html.text "Upload"]
+        , downloadButton
+        ]
   in
     --sidebar
     Html.div [ Attr.style "display" "flex" ]
@@ -421,7 +436,9 @@ view model =
       , Attr.align "center"
       ]
       -- Gallery of database maps in the sidebar
-      [ map_gallery model.galleryMaps ]
+      [ map_gallery model.galleryMaps
+      , savebar
+      ]
     ,
       Html.div
       [ Attr.css
@@ -445,7 +462,6 @@ view model =
                    , Attr.align "center"
                    , Attr.style "margin-bottom" "15px" ]
                    [ undo, redo, tools, clear ]
-        , savebar
         , Html.div [ Attr.align "center"
                    , Attr.id "map_canvas_container"
                    , Attr.style "display" (if model.editState then "block" else "block") ]
@@ -453,11 +469,6 @@ view model =
         , Html.canvas
             ( [Attr.style "display" (if model.editState then "none" else "none")]
                 ++ (canvas_attributes model) ) [ ]
-        , (if model.editState
-          then Html.button ( (onClick SwitchState) :: button_attributes )
-                           [ Html.text "Save as Image" ]
-          else Html.button ( (onClick Download) :: button_attributes )
-                           [ Html.text "Download" ])
         ]
       ]
 
@@ -896,7 +907,7 @@ encode_model model =
 
   in
     -- The two top-level fields are the name to save it under and the map data
-    Encode.object [ ("name", Encode.string "test_map"), ("map", map) ]
+    Encode.object [ ("name", Encode.string model.mapName), ("map", map) ]
 
 
 map_decoder : Decode.Decoder Map
