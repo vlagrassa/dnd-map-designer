@@ -285,6 +285,13 @@ view model =
             |> R.svg
     clear = Html.button [ onClick ClearBoard, Attr.style "margin-left" "5px" ] [ Html.text "Clear" ]
     tools = Html.select [ Attr.style "margin-right" "5px" ] Tool.toolOptions
+    savebar =
+      Html.div [ Attr.align "center" ]
+               [ Html.button [ onClick RequestMapNames ] [Html.text "Request Map Names"]
+               , Html.button [ onClick <| RequestMap "test_map"] [Html.text "Request Map"]
+               , Html.button [ onClick RequestGallery] [Html.text "Request Gallery"]
+               , Html.button [ onClick <| UploadMap (encode_model model) ] [Html.text "Upload"]
+               ]
   in
     Html.div []
         [ Html.h3 [ Attr.align "center"
@@ -298,6 +305,7 @@ view model =
                    , Attr.align "center"
                    , Attr.style "margin-bottom" "15px" ]
                    (if model.editState then [ tools, clear ] else [])
+        , savebar
         , Html.div [ Attr.align "center"
                    , Attr.id "map_canvas_container"
                    , Attr.style "display" (if model.editState then "block" else "none") ]
@@ -311,7 +319,9 @@ view model =
                    , Attr.style "margin-top" "15px"
                    , Attr.style "color" "#F7F9F9"
                    , Attr.style "font-family" "Optima, sans-serif" ]
-                   (if model.editState then [] else [ Html.text save_msg ]) ]
+                   (if model.editState then [] else [ Html.text save_msg ])
+        , map_gallery model.galleryMaps
+        ]
 
 
 -- Drawing Map Objects -----------------------------------------------
@@ -351,7 +361,7 @@ draw_ground model =
     fill_style = C.uniform (Color.rgba 1 1 1 0.5)
     line_style = C.solid C.thick (C.uniform Color.black)
   in
-    List.map (shape_to_collage (fill_style, line_style)) model.ground |> C.group
+    List.map (shape_to_collage gridToCol (fill_style, line_style)) model.ground |> C.group
 
 draw_paths : Model -> C.Collage Msg
 draw_paths model =
@@ -403,6 +413,32 @@ draw_menu model =
   in
       List.foldr (\x -> L.at L.left x) menu_bg
                  [lock_auto,free_auto,lock_pen,free_pen,rect_tool]
+
+
+
+
+
+make_thumbnail : Map -> C.Collage Msg
+make_thumbnail map =
+  let
+    fill_style = C.uniform (Color.rgba 1 1 1 0.5)
+    line_style = C.solid C.thick (C.uniform Color.black)
+
+  in
+    List.map (shape_to_collage (Grid.mapSame ((*) 15)) (fill_style, line_style)) map.ground
+      |> C.group
+
+
+map_gallery : List Map -> Html Msg
+map_gallery maps =
+  let
+    thumbnails = List.map (make_thumbnail >> R.svg) maps
+  in
+    Html.div
+      []
+      ((Html.text "Gallery") :: thumbnails)
+
+
 
 
 -- Converting Between Coordinate Systems -----------------------------
@@ -471,10 +507,10 @@ jsToGridLocked model coord =
 
 -- Converting Shapes to Collage Elements -----------------------------
 
-shape_to_collage : (C.FillStyle, C.LineStyle) -> Grid.Shape -> C.Collage Msg
-shape_to_collage (fill, line) shape =
+shape_to_collage : (Grid.Point -> C.Point) -> (C.FillStyle, C.LineStyle) -> Grid.Shape -> C.Collage Msg
+shape_to_collage grid_to_collage (fill, line) shape =
   let
-    scale_and_convert = List.map gridToCol >> C.polygon
+    scale_and_convert = List.map grid_to_collage >> C.polygon
     style_both =    C.styled (fill, line)
     style_outline = C.styled (C.transparent, line)
     style_fill =    C.filled fill
