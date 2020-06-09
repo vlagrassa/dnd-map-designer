@@ -23,6 +23,8 @@ type Direction
   | Widdershins
 
 
+type alias PolygonTuple = (Polygon, List Polygon)
+
 
 addPointToShape : Point -> Shape -> Shape
 addPointToShape point s =
@@ -123,11 +125,9 @@ makeRing p1 p2 t =
     Composite outside [inside]
 
 
-compositeFromTuple : (Polygon, List Polygon) -> Shape
-compositeFromTuple (outline, holes) = Composite outline holes
 
-fromOutlineAndHoles : (Polygon, List Polygon) -> Shape
-fromOutlineAndHoles (outline, holes) =
+fromPolygonTuple : PolygonTuple -> Shape
+fromPolygonTuple (outline, holes) =
   case holes of
     [] -> Polygon outline
     _  -> Composite outline holes
@@ -365,7 +365,7 @@ union a b =
 
     (Polygon a_poly, Polygon b_poly) ->
       union_polygons a_poly b_poly
-      |> Maybe.map fromOutlineAndHoles
+      |> Maybe.map fromPolygonTuple
 
     (Composite a_outline a_holes, Polygon b_poly) ->
       let
@@ -373,7 +373,7 @@ union a b =
         new_holes = make_holes b_poly a_holes
 
         handle_holes_and_outline holes (outline, more_holes) =
-          fromOutlineAndHoles (outline, holes ++ more_holes)
+          fromPolygonTuple (outline, holes ++ more_holes)
       in
         Maybe.map2 handle_holes_and_outline new_holes new_outline
 
@@ -394,7 +394,7 @@ union a b =
         new_holes_both = cart_prod intersect_polygons b_holes a_holes |> MaybeE.values |> List.concat
 
         handle_holes_and_outline holes (outline, more_holes) =
-          fromOutlineAndHoles (outline, holes ++ more_holes ++ new_holes_both)
+          fromPolygonTuple (outline, holes ++ more_holes ++ new_holes_both)
 
       in
         Maybe.map2 handle_holes_and_outline new_holes_either new_outline
@@ -407,10 +407,10 @@ union_ a b = MaybeE.unwrap [a, b] List.singleton (union a b)
 intersection : Shape -> Shape -> Maybe (List Shape)
 intersection a b =
   let
-    format_as_tuples : List Polygon -> List (Polygon, List Polygon)
+    format_as_tuples : List Polygon -> List PolygonTuple
     format_as_tuples = List.map (\o -> (o, []))
 
-    remove_hole : Polygon -> List (Polygon, List Polygon) -> List (Polygon, List Polygon)
+    remove_hole : Polygon -> List PolygonTuple -> List PolygonTuple
     remove_hole hole =
       let
         convert_to_same = Either.unpack format_as_tuples List.singleton
@@ -421,12 +421,12 @@ intersection a b =
       in
         List.concatMap map_func
 
-    remove_all_holes : List Polygon -> List (Polygon, List Polygon) -> List (Polygon, List Polygon)
+    remove_all_holes : List Polygon -> List PolygonTuple -> List PolygonTuple
     remove_all_holes holes outline = List.foldl (\h -> remove_hole h) outline holes
 
     make_shapes : List Polygon -> List Polygon -> List Shape
     make_shapes holes =
-      format_as_tuples >> remove_all_holes holes >> List.map fromOutlineAndHoles
+      format_as_tuples >> remove_all_holes holes >> List.map fromPolygonTuple
 
     perform_intersect : Polygon -> Polygon -> List Polygon -> Maybe (List Shape)
     perform_intersect outline_1 outline_2 holes =
@@ -455,7 +455,7 @@ difference a b =
   let
     -- Convert the two possible outputs of a difference into shapes
     handle_indents = List.map Polygon
-    handle_hole    = List.singleton << fromOutlineAndHoles
+    handle_hole    = List.singleton << fromPolygonTuple
 
     -- Convert either output of a difference into shapes
     make_shapes = Either.unpack handle_indents handle_hole
@@ -482,7 +482,7 @@ difference a b =
     make_outline : Polygon -> List Polygon -> List Polygon
     make_outline outline = List.foldl outline_fold_func [outline]
 
-    remove_hole : Polygon -> List (Polygon, List Polygon) -> List (Polygon, List Polygon)
+    remove_hole : Polygon -> List PolygonTuple -> List PolygonTuple
     remove_hole hole =
       let
         map_func (x, hs) = difference_polygons x hole
@@ -491,7 +491,7 @@ difference a b =
       in
         List.concatMap map_func
 
-    remove_all_holes : List Polygon -> List (Polygon, List Polygon) -> List (Polygon, List Polygon)
+    remove_all_holes : List Polygon -> List PolygonTuple -> List PolygonTuple
     remove_all_holes holes outline = List.foldl (\h -> remove_hole h) outline holes
 
   in
@@ -522,7 +522,7 @@ difference a b =
         all_shapes = Maybe.map ((++) shapes_from_holes) shapes_from_outline
 
       in
-        Maybe.map (List.map fromOutlineAndHoles) all_shapes
+        Maybe.map (List.map fromPolygonTuple) all_shapes
 
     -- TODO: This branch will return the original shape even if there is no overlap
     (Composite a_outline a_holes, Composite b_outline b_holes) ->
@@ -540,7 +540,7 @@ difference a b =
         all_shapes = (++) shapes_from_holes shapes_from_outline
 
       in
-        Just <| List.map fromOutlineAndHoles all_shapes
+        Just <| List.map fromPolygonTuple all_shapes
 
 
 difference_ : Shape -> Shape -> List Shape
@@ -731,7 +731,7 @@ trace_polygons_maker initial_d poly_a poly_b =
 
 
 
-determine_outline : List Polygon -> Maybe (Polygon, List Polygon)
+determine_outline : List Polygon -> Maybe PolygonTuple
 determine_outline p_list =
   case p_list of
     []    -> Nothing
@@ -772,7 +772,7 @@ is_outer x y =
   List.foldl (&&) True <| List.map (\pt -> point_inside_polygon pt x) y
 
 
-union_polygons : Polygon -> Polygon -> Maybe (Polygon, List Polygon)
+union_polygons : Polygon -> Polygon -> Maybe PolygonTuple
 union_polygons poly_a poly_b =
   let
     corrected_b = set_direction (direction poly_a) poly_b
@@ -811,7 +811,7 @@ intersect_polygons_ poly_a poly_b = Maybe.withDefault [poly_a, poly_b] (intersec
 
 -- LEFT:  Indentations
 -- RIGHT: Single hole
-difference_polygons : Polygon -> Polygon -> Maybe (Either (List Polygon) (Polygon, List Polygon))
+difference_polygons : Polygon -> Polygon -> Maybe (Either (List Polygon) PolygonTuple)
 difference_polygons poly_a poly_b =
   let
     (dir_a, dir_b) = (direction poly_a, direction poly_b)

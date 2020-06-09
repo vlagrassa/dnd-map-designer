@@ -80,7 +80,7 @@ shapeDecoder =
       Decode.maybe (Decode.field "holes" (Decode.list polygonDecoder))
         |> Decode.map (Maybe.withDefault [])
   in
-    Decode.map2 (\x y -> fromOutlineAndHoles (x,y)) decode_outline decode_holes
+    Decode.map2 (\x y -> fromPolygonTuple (x,y)) decode_outline decode_holes
 
 decodeShape : Encode.Value -> Maybe Shape
 decodeShape = Result.toMaybe << Decode.decodeValue shapeDecoder
