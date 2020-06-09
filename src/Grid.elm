@@ -35,6 +35,21 @@ addPointPath : Point -> Path -> Path
 addPointPath point (Path p) =
   Path (point :: p)
 
+addPointIfBeyond : Float -> Point -> Path -> Path
+addPointIfBeyond d new_pt (Path path) = case path of
+  [] -> Path [new_pt]
+
+  pt1::pt2::pts ->
+    if colinear new_pt pt1 pt2 then
+      Path (new_pt :: pt2 :: pts)
+    else if distance pt1 new_pt >= d then
+      Path (new_pt :: path)
+    else
+      Path path
+
+  pt::pts ->
+    if distance pt new_pt >= d then Path (new_pt :: path) else Path path
+
 
 pathToShape : Path -> Shape
 pathToShape (Path p) =

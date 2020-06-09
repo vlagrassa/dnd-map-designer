@@ -3,9 +3,13 @@ port module Main exposing (..)
 -- Add/modify imports if you'd like. ---------------------------------
 
 import Browser
-import Html exposing (Html)
-import Html.Attributes as Attr
-import Html.Events exposing (..)
+import Html.Styled as Html exposing (Html)
+import Html.Styled.Attributes as Attr
+import Html.Styled.Events exposing (..)
+
+import Css
+import Css.Global
+import Svg.Styled
 
 import String exposing (fromInt, fromFloat, repeat)
 import Debug
@@ -20,8 +24,12 @@ import SingleSlider
 import ColorPicker
 
 import Grid
+import Grid.Json
 import Tool
 import Stack
+
+import Json.Encode as Encode
+import Json.Decode as Decode
 
 -- Main Stuff --------------------------------------------------------
 
@@ -29,7 +37,7 @@ main : Program Flags Model Msg
 main = 
   Browser.element
     { init = init
-    , view = view
+    , view = view >> Html.toUnstyled
     , update = update
     , subscriptions = subscriptions
     }
@@ -45,6 +53,8 @@ type alias Model =
   , editState : Bool
   , mouseDown : Bool
   , tool : Tool.Tool
+  , galleryMaps : List Map
+  , mapName : String
   , undoStack : Stack.Stack (List MapShape, List MapPath)
   , redoStack : Stack.Stack (List MapShape, List MapPath)
   , erasing : Bool
@@ -56,6 +66,12 @@ type alias Model =
 
 type alias Coordinate = { x:Int, y:Int }
 
+type alias Map =
+  { name   : String
+  , ground : List MapShape
+  , walls  : List MapPath
+  }
+
 type Msg
   = NullMsg
   | MouseMove (Maybe Coordinate)
@@ -63,6 +79,14 @@ type Msg
   | MouseUpDown Bool
   | SwitchTool Tool.Tool
   | ClearBoard
+  | RequestMapNames
+  | MapNames (List String)
+  | RequestMap String
+  | LoadMap (Maybe Map)
+  | RequestGallery
+  | LoadGallery (List Map)
+  | UploadMap Encode.Value
+  | LoadGalleryMap Map
   | Undo
   | Redo
   | ToggleErasing
@@ -70,6 +94,7 @@ type Msg
   | WidthSliderChange Float
   | HeightSliderChange Float
   | ColorPickerMsg ColorPicker.Msg
+  | MapName String
 
 type alias Flags = ()
 
@@ -93,6 +118,17 @@ port receiveMouseUpDown : (Bool -> msg) -> Sub msg
 
 port sendEditState : Bool -> Cmd msg
 
+port uploadMap : Encode.Value -> Cmd msg
+
+port requestMapNames : () -> Cmd msg
+port receiveMapNames : (List String -> msg) -> Sub msg
+
+port requestMap : String -> Cmd msg
+port receiveMap : (Encode.Value -> msg) -> Sub msg
+
+port requestGallery : () -> Cmd msg
+port receiveGallery : (Encode.Value -> msg) -> Sub msg
+
 port sendDownload : Bool -> Cmd msg
 
 
@@ -101,13 +137,13 @@ port sendDownload : Bool -> Cmd msg
 -- Initialization ----------------------------------------------------
 
 init : Flags -> (Model, Cmd Msg)
-init () = (initModel, Cmd.none)
+init () = (initModel, requestGallery ())
 
 initModel : Model
 initModel = 
   { mouseLocation = Nothing
-  , mapHeight = 15
-  , mapWidth = 20
+  , mapHeight = 20
+  , mapWidth = 25
   , ground = []
   , walls = []
   , currentDrawing = newMP (Grid.Path []) Color.black
@@ -115,6 +151,8 @@ initModel =
   , editState = True
   , mouseDown = False
   , tool = Tool.FreeformPen
+  , galleryMaps = []
+  , mapName = ""
   , undoStack = Stack.empty 5
   , redoStack = Stack.empty 5
   , erasing = False
@@ -132,7 +170,11 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
   Sub.batch
     [ receiveMouseMove MouseMove
-    , receiveMouseUpDown MouseUpDown]
+    , receiveMouseUpDown MouseUpDown
+    , receiveMapNames MapNames
+    , receiveMap (LoadMap << decode_map)
+    , receiveGallery (LoadGallery << decode_gallery)
+    ]
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
@@ -167,7 +209,7 @@ update msg model = case msg of
                       _ -> if model.mouseDown
                            then case ml of
                              Just loc ->
-                               newMP (Grid.addPointPath (toGrid loc) cur.path) model.currentColor
+                               newMP (Grid.addPointIfBeyond 0.1 (toGrid loc) cur.path) model.currentColor
                              Nothing -> cur
                            else cur
                 , currentRect =
@@ -332,6 +374,34 @@ update msg model = case msg of
                   , currentColor = color |> Maybe.withDefault model.currentColor }, Cmd.none )
 
 
+  RequestMapNames ->
+    (model, requestMapNames ())
+
+  RequestMap name ->
+    (model, requestMap name)
+
+  RequestGallery ->
+    (model, requestGallery ())
+
+  MapNames names ->
+    (model, Cmd.none)
+
+  LoadMap map ->
+    (model, Cmd.none)
+
+  LoadGallery maps ->
+    ( {model | galleryMaps = maps} , Cmd.none)
+
+  UploadMap map ->
+    (model, uploadMap map)
+
+  LoadGalleryMap map ->
+    ( {model | ground = map.ground, walls = map.walls, mapName = map.name }, Cmd.none)
+
+  MapName str ->
+    ( { model | mapName = str }, Cmd.none)
+
+
 
 
 -- View --------------------------------------------------------------
@@ -364,15 +434,52 @@ view model =
             |> List.map (\f -> f model)
             |> C.group
             |> R.svg
+            |> Svg.Styled.fromUnstyled
     clear = Html.button [ onClick ClearBoard, Attr.style "margin-left" "8px" ] [ Html.text "Clear" ]
     tools = Html.select [ Attr.style "margin" "2px" ] Tool.toolOptions
     undo = Html.button [ onClick Undo, Attr.style "margin-right" "5px" ] [ Html.text "Undo" ]
     redo = Html.button [ onClick Redo, Attr.style "margin-right" "8px" ] [ Html.text "Redo" ]
     eraser = Html.button [ onClick ToggleErasing, Attr.style "margin-left" "5px" ] [Html.text (blah model.erasing) ]
     colorpicker = Html.div [ Attr.style "margin" "10px" ] [ ColorPicker.view model.currentColor model.colorPicker
-                                  |> Html.map ColorPickerMsg ]
+                                  |> Html.fromUnstyled |> Html.map ColorPickerMsg ]
+    downloadButton =
+      (if model.editState
+        then Html.button ( (onClick SwitchState) :: button_attributes )
+                         [ Html.text "Save as Image" ]
+        else Html.button ( (onClick Download) :: button_attributes )
+                         [ Html.text "Download" ])
+    savebar =
+      Html.div
+        [ Attr.align "center"
+        , Attr.css [{-Css.position Css.absolute,-} Css.bottom (Css.px 5)]
+        ]
+        [ Html.input [ Attr.value model.mapName, onInput MapName ] []
+        , Html.button ((onClick <| UploadMap (encode_model model)) :: button_attributes) [Html.text "Upload"]
+        , downloadButton
+        ]
   in
-    Html.div []
+    --sidebar
+    Html.div [ Attr.style "display" "flex" ]
+    [
+      -- Styling to create the sidebar
+      Html.aside
+      [ Attr.css [ Css.width <| Css.pct 20 ]
+      , Attr.style "background" "#444444"
+      , Attr.align "center"
+      ]
+      -- Gallery of database maps in the sidebar
+      [ map_gallery model.galleryMaps
+      , savebar
+      ]
+    ,
+      Html.div
+      [ Attr.css
+        [ Css.flex <| Css.int 1
+        , Css.overflow Css.auto
+        ]
+      ]
+    [
+      Html.div []
         [ Html.h3 [ Attr.align "center"
                   , Attr.style "margin" "15px"
                   , Attr.style "font" "25px Optima, sans-serif"
@@ -380,7 +487,7 @@ view model =
                   [ Html.text msg, Html.sup [ ] [ Html.text "\u{2122}"] ]
         , Html.div [ Attr.align "center"
                    , Attr.style "margin-bottom" "10px" ]
-                   [ SingleSlider.view model.widthSlider, SingleSlider.view model.heightSlider ]
+                   (List.map Html.fromUnstyled [ SingleSlider.view model.widthSlider, SingleSlider.view model.heightSlider ])
         , Html.div [ onInput (\s -> case Tool.toTool s of
                                       Just t -> SwitchTool t
                                       Nothing -> SwitchTool Tool.FreeformPen)
@@ -394,12 +501,15 @@ view model =
         , Html.canvas
             ( [Attr.style "display" (if model.editState then "none" else "none")]
                 ++ (canvas_attributes model) ) [ ]
-        , (if model.editState
-          then Html.button ( (onClick SwitchState) :: button_attributes )
-                           [ Html.text "Save as Image" ]
-          else Html.button ( (onClick Download) :: button_attributes )
-                           [ Html.text "Download" ])
         ]
+      ]
+
+      -- Global style tag to show the gallery map label tags on mouseover
+      , Css.Global.global
+        [ Css.Global.typeSelector ".gallerymapcontainer:hover .gallerymaptag"
+          [Css.visibility Css.visible]
+        ]
+    ]
 
 
 -- Drawing Map Objects -----------------------------------------------
@@ -439,8 +549,8 @@ draw_ground model =
     fill_style = C.uniform (Color.rgba 1 1 1 0.5)
     line_style = C.solid C.thick (C.uniform Color.black)
   in
-    shape_to_collage fill_style model.currentRect
-      :: List.map (shape_to_collage fill_style) model.ground 
+    shape_to_collage gridToCol fill_style model.currentRect
+      :: List.map (shape_to_collage gridToCol fill_style) model.ground 
            |> C.group
 
 draw_paths : Model -> C.Collage Msg
@@ -454,8 +564,8 @@ draw_paths model =
       dotstyle = C.broken [ (5, 2), (15, 2) ] 5 (C.uniform Color.darkBrown)
       hedge = C.dot 5 (C.uniform Color.darkGreen)
   in
-      path_to_collage model.currentDrawing
-        :: (List.map path_to_collage model.walls) 
+      path_to_collage gridToCol model.currentDrawing
+        :: (List.map (path_to_collage gridToCol) model.walls) 
             |> C.group
 
 draw_mouse : Model -> C.Collage Msg
@@ -498,6 +608,109 @@ draw_menu model =
   in
       List.foldr (\x -> L.at L.left x) menu_bg
                  [lock_auto,free_auto,lock_pen,free_pen,rect_tool]
+
+
+
+
+--(Grid.Point -> C.Point) -> C.FillStyle -> MapShape -> C.Collage Msg
+
+
+make_thumbnail : Float -> Map -> Html Msg
+make_thumbnail thumbnail_size map =
+  let
+    fill_style = C.uniform (Color.rgba 1 1 1 0.5)
+    line_style = C.solid C.thick (C.uniform Color.black)
+
+    shift_size = thumbnail_size / 2
+
+    convert_ground = shape_to_collage (Grid.mapSame ((*) 8)) fill_style -- (fill_style, line_style)
+    convert_walls  = path_to_collage  (Grid.mapSame ((*) 8)) -- line_style
+
+    display = List.map convert_walls map.walls ++ List.map convert_ground map.ground
+      |> C.group |> C.shift (-shift_size, -shift_size)
+      |> R.svgBox (thumbnail_size, thumbnail_size) |> Svg.Styled.fromUnstyled
+  in
+    Html.div
+      [ Attr.class "gallerymapcontainer"
+      , Attr.css
+        -- Relative positioning necessary for the child tooltip
+        [ Css.position Css.relative
+        -- Change mouse pointer to indicate selection is allowed
+        , Css.cursor Css.pointer
+        ]
+      -- When thumbnail clicked, load the given map
+      , onClick <| LoadGalleryMap map
+      ]
+      [ Html.div
+
+        -- Make the thumbnail fade a bit on mouseover
+        [ Attr.css [ Css.hover [ Css.opacity (Css.num 0.5) ] ] ]
+
+        -- The thumbnail image itself
+        [display]
+
+      -- The tooltip nametag
+      , Html.span
+        [ Attr.class "gallerymaptag"
+
+        -- The CSS styling
+        , Attr.css
+
+          -- Positioning: bottom left corner
+          [ Css.position Css.absolute
+          , Css.bottom  (Css.px 5)
+          , Css.left    (Css.px 5)
+
+          -- Rounded corners
+          , Css.padding      (Css.px 5)
+          , Css.borderRadius (Css.px 6)
+
+          -- Colors: white text on black background, slightly transparent
+          , Css.color           (Css.hex "#ffffff")
+          , Css.backgroundColor (Css.hex "#000000")
+          , Css.opacity         (Css.num 0.8)
+
+          -- Default to hidden, only shown on mouseover
+          , Css.visibility Css.hidden
+          ]
+        ]
+        [ Html.text map.name
+        ]
+      ]
+
+
+
+map_gallery : List Map -> Html Msg
+map_gallery maps =
+  let
+    thumbnails = List.map (make_thumbnail 190) maps
+
+    make_flexbox content =
+      Html.div
+        [ Attr.css
+            [ Css.flexBasis <| Css.pct 25
+            , Css.padding2 Css.zero (Css.px 8)
+            ]
+        , Attr.align "center"
+        ]
+        [ content ]
+  in
+    Html.div
+      [ Attr.align "center" ]
+      [ Html.h3 [Attr.style "color" "#F7F9F9"] [Html.text "Gallery"]
+      , Html.div
+          [ Attr.css
+              [ Css.displayFlex
+              , Css.flexWrap Css.wrap
+              , Css.margin2 Css.zero (Css.px -8)
+              , Css.justifyContent Css.center
+              , Css.alignItems Css.center
+              ]
+          ]
+          (List.map make_flexbox thumbnails)
+        ]
+
+
 
 
 -- Converting Between Coordinate Systems -----------------------------
@@ -566,13 +779,13 @@ jsToGridLocked model coord =
 
 -- Converting Shapes to Collage Elements -----------------------------
 
-shape_to_collage : C.FillStyle -> MapShape -> C.Collage Msg
-shape_to_collage fill ms =
+shape_to_collage : (Grid.Point -> C.Point) -> C.FillStyle -> MapShape -> C.Collage Msg
+shape_to_collage grid_to_collage fill ms =
   let
     shape = ms.shape
     col = ms.color
     line = C.solid C.thick (C.uniform col)
-    scale_and_convert = List.map gridToCol >> C.polygon
+    scale_and_convert = List.map grid_to_collage >> C.polygon
     style_both =    C.styled (fill, line)
     style_outline = C.styled (C.transparent, line)
     style_fill =    C.filled fill
@@ -590,15 +803,15 @@ shape_to_collage fill ms =
         in
           C.group (outlines ++ [inside])
 
-path_to_collage : MapPath -> C.Collage Msg
-path_to_collage mp =
+path_to_collage : (Grid.Point -> C.Point) -> MapPath -> C.Collage Msg
+path_to_collage grid_to_collage mp =
   let
       path = mp.path
       col = mp.color
       line = C.solid C.thick (C.uniform col)
   in
       case path of
-        Grid.Path p -> (C.path (List.map gridToCol p)) |> C.traced line
+        Grid.Path p -> (C.path (List.map grid_to_collage p)) |> C.traced line
 
 
 
@@ -639,6 +852,7 @@ remove_ground shape shape_list =
 
 remove_wall : MapPath -> List MapPath -> List MapPath
 remove_wall path path_list = path_list
+
 
 
 
@@ -706,7 +920,10 @@ max_x_walls xs =
     Nothing -> 1
     Just x -> x
 
--- Extra Helper Functions -------------------------------------------
+               
+
+
+-- Slider Functions ---------------------------------------------------
 
 new_h_slider : Float -> Float -> SingleSlider.SingleSlider Msg
 new_h_slider min val =
@@ -724,3 +941,113 @@ new_w_slider min val =
       |> SingleSlider.withMaxFormatter (\value -> "")
       |> SingleSlider.withValueFormatter (\x y -> "")
  
+
+
+
+-- Interacting with the Database -------------------------------------
+
+
+decode_field_default : String -> Decode.Decoder a -> a -> Decode.Decoder a
+decode_field_default field decoder default =
+  Decode.maybe (Decode.field field decoder)
+    |> Decode.map (Maybe.withDefault default)
+
+encode_color : Color -> Encode.Value
+encode_color c = Encode.null
+
+color_decoder : Decode.Decoder Color
+color_decoder =
+  Decode.map4 Color.rgba
+    (decode_field_default "red"   Decode.float   0)
+    (decode_field_default "green" Decode.float   0)
+    (decode_field_default "blue"  Decode.float   0)
+    (decode_field_default "alpha" Decode.float 1)
+
+
+-- Convert the current map into an object that can be saved to the database
+-- Stores the following fields:
+--    - Ground
+--    - Walls
+encode_model : Model -> Encode.Value
+encode_model model =
+  let
+    encode_ground map_obj = Encode.object
+      [ ("shape", Grid.Json.encodeShape map_obj.shape)
+      , ("color", encode_color map_obj.color )
+      ]
+    encode_walls map_obj = Encode.object
+      [ ("path", Grid.Json.encodePath map_obj.path)
+      , ("color", encode_color map_obj.color )
+      ]
+
+    -- The different features of the map, encoded
+    ground = Encode.list encode_ground model.ground
+    walls  = Encode.list encode_walls  model.walls
+
+    -- The features of the map packaged together
+    map = Encode.object [ ("ground", ground), ("walls",  walls)]
+
+  in
+    -- The two top-level fields are the name to save it under and the map data
+    Encode.object [ ("name", Encode.string model.mapName), ("map", map) ]
+
+
+map_decoder : Decode.Decoder Map
+map_decoder =
+  let
+    --decode_or_empty field decoder default =
+    --  Decode.maybe (Decode.field field decoder)
+    --    |> Decode.map (Maybe.withDefault default)
+
+    decode_ground_uncolored : Decode.Decoder MapShape
+    decode_ground_uncolored =
+      Decode.map (\s -> {shape = s, color = Color.black}) <|
+        Decode.field "ground" Grid.Json.shapeDecoder
+      --decode_field_default "ground" (Decode.list Grid.Json.shapeDecoder) []
+
+    decode_walls_uncolored =
+      Decode.map (\p -> {path = p, color = Color.black}) <|
+        Decode.field "walls" Grid.Json.pathDecoder
+      --decode_field_default "walls"  (Decode.list Grid.Json.pathDecoder ) []
+
+    decode_ground_colored : Decode.Decoder MapShape
+    decode_ground_colored =
+      Decode.map2 MapShape
+        (Decode.field "shape" Grid.Json.shapeDecoder)
+        (decode_field_default "color" color_decoder (Color.black))
+
+    decode_walls_colored =
+      Decode.map2 MapPath
+        (Decode.field "path"  Grid.Json.pathDecoder)
+        (decode_field_default "color" color_decoder (Color.black))
+
+    decode_ground = Decode.list <| Decode.oneOf
+      [ decode_ground_colored
+      , decode_ground_uncolored
+      ]
+
+    decode_walls = Decode.list <| Decode.oneOf
+      [ decode_walls_colored
+      , decode_walls_uncolored
+      ]
+
+    decode_name   = decode_field_default "name" Decode.string ""
+    --decode_ground = decode_field_default "ground" (Decode.list Grid.Json.shapeDecoder) []
+    --decode_walls  = decode_field_default "walls"  (Decode.list Grid.Json.pathDecoder ) []
+  in
+    Decode.map3 Map decode_name decode_ground decode_walls
+
+
+decode_map : Encode.Value -> Maybe Map
+decode_map =
+  Result.toMaybe << Decode.decodeValue map_decoder
+
+
+-- Does this have to explicitly handle Maybe values in the maps?
+gallery_decoder : Decode.Decoder (List Map)
+gallery_decoder =
+    Decode.list map_decoder
+
+decode_gallery : Encode.Value -> List Map
+decode_gallery =
+  Result.withDefault [] << Decode.decodeValue gallery_decoder

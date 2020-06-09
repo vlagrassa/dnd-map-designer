@@ -1,6 +1,6 @@
 module Tool exposing (..)
 
-import Html exposing (Html)
+import Html.Styled as Html exposing (Html)
 import Color
 
 type Tool
