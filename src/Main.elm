@@ -570,17 +570,20 @@ draw_menu model =
 
 
 
-make_thumbnail : Map -> Html Msg
-make_thumbnail map =
+make_thumbnail : Float -> Map -> Html Msg
+make_thumbnail thumbnail_size map =
   let
     fill_style = C.uniform (Color.rgba 1 1 1 0.5)
     line_style = C.solid C.thick (C.uniform Color.black)
+
+    shift_size = thumbnail_size / 2
 
     convert_ground = shape_to_collage (Grid.mapSame ((*) 8)) (fill_style, line_style)
     convert_walls  = path_to_collage  (Grid.mapSame ((*) 8)) line_style
 
     display = List.map convert_walls map.walls ++ List.map convert_ground map.ground
-      |> C.group |> R.svg |> Svg.Styled.fromUnstyled
+      |> C.group |> C.shift (-shift_size, -shift_size)
+      |> R.svgBox (thumbnail_size, thumbnail_size) |> Svg.Styled.fromUnstyled
   in
     Html.div
       [ Attr.class "gallerymapcontainer"
@@ -635,7 +638,7 @@ make_thumbnail map =
 map_gallery : List Map -> Html Msg
 map_gallery maps =
   let
-    thumbnails = List.map make_thumbnail maps
+    thumbnails = List.map (make_thumbnail 190) maps
 
     make_flexbox content =
       Html.div
