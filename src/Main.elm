@@ -21,6 +21,7 @@ import Grid.Json
 import Tool
 
 import Json.Encode as Encode
+import Json.Decode as Decode
 
 -- Main Stuff --------------------------------------------------------
 
@@ -42,9 +43,16 @@ type alias Model =
   , editState : Bool
   , mouseDown : Bool
   , tool : Tool.Tool
+  , galleryMaps : List Map
   }
 
 type alias Coordinate = { x:Int, y:Int }
+
+type alias Map =
+  { name   : String
+  , ground : List Grid.Shape
+  , walls  : List Grid.Path
+  }
 
 type Msg
   = NullMsg
@@ -56,7 +64,9 @@ type Msg
   | RequestMapNames
   | MapNames (List String)
   | RequestMap String
-  | LoadMap (Maybe Grid.Shape)
+  | LoadMap (Maybe Map)
+  | RequestGallery
+  | LoadGallery (List Map)
   | UploadMap Encode.Value
 
 type alias Flags = ()
@@ -80,6 +90,9 @@ port receiveMapNames : (List String -> msg) -> Sub msg
 port requestMap : String -> Cmd msg
 port receiveMap : (Encode.Value -> msg) -> Sub msg
 
+port requestGallery : () -> Cmd msg
+port receiveGallery : (Encode.Value -> msg) -> Sub msg
+
 
 
 
@@ -98,6 +111,7 @@ initModel =
   , editState = True
   , mouseDown = False
   , tool = Tool.FreeformPen
+  , galleryMaps = []
   }
 
 
@@ -110,6 +124,8 @@ subscriptions model =
     [ receiveMouseMove MouseMove
     , receiveMouseUpDown MouseUpDown
     , receiveMapNames MapNames
+    , receiveMap (LoadMap << decode_map)
+    , receiveGallery (LoadGallery << decode_gallery)
     ]
 
 
@@ -223,11 +239,17 @@ update msg model = case msg of
   RequestMap name ->
     (model, requestMap name)
 
+  RequestGallery ->
+    (model, requestGallery ())
+
   MapNames names ->
     (model, Cmd.none)
 
   LoadMap map ->
     (model, Cmd.none)
+
+  LoadGallery maps ->
+    ( {model | galleryMaps = maps} , Cmd.none)
 
   UploadMap map ->
     (model, uploadMap map)
@@ -536,3 +558,32 @@ encode_model model =
   in
     -- The two top-level fields are the name to save it under and the map data
     Encode.object [ ("name", Encode.string "test_map"), ("map", map) ]
+
+
+map_decoder : Decode.Decoder Map
+map_decoder =
+  let
+    decode_or_empty field decoder default =
+      Decode.maybe (Decode.field field decoder)
+        |> Decode.map (Maybe.withDefault default)
+
+    decode_name   = decode_or_empty "name" Decode.string ""
+    decode_ground = decode_or_empty "ground" (Decode.list Grid.Json.shapeDecoder) []
+    decode_walls  = decode_or_empty "walls"  (Decode.list Grid.Json.pathDecoder ) []
+  in
+    Decode.map3 Map decode_name decode_ground decode_walls
+
+
+decode_map : Encode.Value -> Maybe Map
+decode_map =
+  Result.toMaybe << Decode.decodeValue map_decoder
+
+
+-- Does this have to explicitly handle Maybe values in the maps?
+gallery_decoder : Decode.Decoder (List Map)
+gallery_decoder =
+    Decode.list map_decoder
+
+decode_gallery : Encode.Value -> List Map
+decode_gallery =
+  Result.withDefault [] << Decode.decodeValue gallery_decoder
