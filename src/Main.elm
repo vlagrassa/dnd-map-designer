@@ -121,7 +121,7 @@ port sendDownload : Bool -> Cmd msg
 -- Initialization ----------------------------------------------------
 
 init : Flags -> (Model, Cmd Msg)
-init () = (initModel, Cmd.none)
+init () = (initModel, requestGallery ())
 
 initModel : Model
 initModel = 
@@ -407,7 +407,6 @@ view model =
       Html.div [ Attr.align "center" ]
                [ Html.button [ onClick RequestMapNames ] [Html.text "Request Map Names"]
                , Html.button [ onClick <| RequestMap "test_map"] [Html.text "Request Map"]
-               , Html.button [ onClick RequestGallery] [Html.text "Request Gallery"]
                , Html.button [ onClick <| UploadMap (encode_model model) ] [Html.text "Upload"]
                ]
   in

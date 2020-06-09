@@ -16,7 +16,7 @@ app.ports.requestMap.subscribe( function(name) {
 
 // Load the map with the requested name
 app.ports.requestGallery.subscribe( function() {
-    firebase.database().ref("/").once("value", function(snapshot) {
+    firebase.database().ref("/").on("value", function(snapshot) {
         let gallery = snapshot.val();
         let elm_gallery = Object.keys(gallery).map(name => {
             let ground = gallery[name].ground;
