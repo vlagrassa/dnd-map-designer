@@ -1,4 +1,4 @@
-port module Main exposing (main)
+port module Main exposing (..)
 
 -- Add/modify imports if you'd like. ---------------------------------
 
@@ -16,9 +16,12 @@ import Collage.Events as E
 import Collage.Render as R
 import Color exposing (Color)
 
+import SingleSlider
+
 import Grid
 import Grid.Json
 import Tool
+import Stack
 
 import Json.Encode as Encode
 import Json.Decode as Decode
@@ -40,10 +43,17 @@ type alias Model =
   , mapWidth : Int
   , ground : List Grid.Shape
   , walls  : List Grid.Path
+  , currentDrawing : Grid.Path
+  , currentRect : Grid.Shape
   , editState : Bool
   , mouseDown : Bool
   , tool : Tool.Tool
   , galleryMaps : List Map
+  , undoStack : Stack.Stack (List Grid.Shape, List Grid.Path)
+  , redoStack : Stack.Stack (List Grid.Shape, List Grid.Path)
+  , erasing : Bool
+  , widthSlider : SingleSlider.SingleSlider Msg
+  , heightSlider : SingleSlider.SingleSlider Msg
   }
 
 type alias Coordinate = { x:Int, y:Int }
@@ -68,6 +78,12 @@ type Msg
   | RequestGallery
   | LoadGallery (List Map)
   | UploadMap Encode.Value
+  | Undo
+  | Redo
+  | ToggleErasing
+  | Download
+  | WidthSliderChange Float
+  | HeightSliderChange Float
 
 type alias Flags = ()
 
@@ -93,6 +109,8 @@ port receiveMap : (Encode.Value -> msg) -> Sub msg
 port requestGallery : () -> Cmd msg
 port receiveGallery : (Encode.Value -> msg) -> Sub msg
 
+port sendDownload : Bool -> Cmd msg
+
 
 
 
@@ -108,10 +126,17 @@ initModel =
   , mapWidth = 25
   , ground = [ ]
   , walls = [ ]
+  , currentDrawing = Grid.Path [ ]
+  , currentRect = Grid.Polygon []
   , editState = True
   , mouseDown = False
   , tool = Tool.FreeformPen
   , galleryMaps = []
+  , undoStack = Stack.empty 5
+  , redoStack = Stack.empty 5
+  , erasing = False
+  , widthSlider = new_w_slider 1 20
+  , heightSlider = new_h_slider 1 15
   }
 
 
@@ -142,56 +167,35 @@ update msg model = case msg of
                  Tool.FreeformPen -> jsToGrid model
                  _ -> jsToGridLocked model
       ml = model.mouseLocation
-      ws = model.walls
-      g = model.ground
-      t = model.tool
+      cur = model.currentDrawing
+      cur_r = model.currentRect
     in
       ( { model | mouseLocation = coord
-
-                , walls = -- update walls for drawing paths and incomplete shapes
-                   case t of
-
-                    Tool.Line ->
-                      if model.mouseDown
-                      then case (ws, ml) of
-                        ([], Just loc) ->
-                          [ Grid.makeLinePts (toGrid loc) (toGrid loc) ]
-                        (hd::tl, Just loc) ->
-                          case (Grid.lineOrigin hd) of
-                            Just o ->
-                              (Grid.makeLinePts o (toGrid loc))::tl
-                            Nothing ->
-                              (Grid.makeLinePts (toGrid loc) (toGrid loc))::ws
-                        _ -> ws
-                      else ws
-
-                    Tool.Rectangle -> ws
-
-                    _ -> if model.mouseDown
-                         then case (ws, ml) of
-                               ([], Just loc) ->
-                                  [ Grid.Path [(toGrid loc)] ]
-                               (hd::tl, Just loc) ->
-                                  (Grid.addPointIfBeyond 0.1 (toGrid loc) hd)::tl
-                               _ -> ws
-                         else ws
-
-                , ground = -- update ground for drawing rectangles
-                   case t of
-                    Tool.Rectangle ->
-                      if model.mouseDown
-                      then case (g, ml) of
-                             ([], Just loc) ->
-                                [Grid.makeRectDims (toGrid loc) 0 0]
-                             (hd::tl, Just loc) ->
-                                case (Grid.rectOrigin hd) of
-                                  Just o ->
-                                     (Grid.rach_makeRectPts o (toGrid loc))::tl
-                                  Nothing ->
-                                     (Grid.makeRectDims (toGrid loc) 0 0)::g
-                             _ -> g
-                      else g
-                    _ -> g }, Cmd.none )
+                , currentDrawing =
+                    case model.tool of
+                      Tool.Line ->
+                        if model.mouseDown
+                        then case (Grid.lineOrigin cur, ml) of
+                          (Just o, Just loc) -> Grid.makeLinePts o (toGrid loc)
+                          (Nothing, Just loc) -> Grid.makeLinePts (toGrid loc) (toGrid loc)
+                          _ -> cur
+                        else cur
+                      Tool.Rectangle -> cur
+                      _ -> if model.mouseDown
+                           then case ml of
+                             Just loc -> Grid.addPointIfBeyond 0.1 (toGrid loc) cur
+                             Nothing -> cur
+                           else cur
+                , currentRect =
+                    case model.tool of
+                      Tool.Rectangle ->
+                        if model.mouseDown
+                        then case (Grid.rectOrigin cur_r, ml) of
+                          (Just o, Just loc) -> Grid.rach_makeRectPts o (toGrid loc)
+                          (Nothing, Just loc) -> Grid.makeRectDims (toGrid loc) 0 0
+                          _ -> cur_r
+                        else cur_r
+                      _ -> cur_r }, Cmd.none )
 
   -- SwitchState handles switching between edit mode and save image mode
   SwitchState ->
@@ -200,37 +204,136 @@ update msg model = case msg of
     else
       ( { model | editState = True }, sendEditState True )
 
+  Download ->
+    ( model, sendDownload True )
+
   -- MouseUpDown handles finishing shapes
   MouseUpDown b ->
     let
-      autofill = 
-        ( { model | mouseDown = b
-                  -- take the unfinished shape from beginning of walls
-                  -- and completes it and adds it to ground and remove
-                  -- it from walls; also add empty shape to walls
-                  , ground = case model.walls of
-                              [] -> model.ground
-                              hd::tl -> (Grid.pathToShape hd) :: model.ground
-                  , walls = case model.walls of
-                              [] -> model.walls
-                              hd::tl -> (Grid.Path []) :: tl }, Cmd.none )
-     in
-       -- only complete unfinished shape if mouseup, add an empty shape to
-       -- ground for rectangle tool and walls for pen tools
+      autofill =
+         { model | mouseDown = b
+                 , ground =
+                    case model.erasing of
+                      False ->
+                        add_ground (Grid.pathToShape model.currentDrawing) model.ground
+                      True ->
+                        remove_ground (Grid.pathToShape model.currentDrawing) model.ground
+                 , currentDrawing = Grid.Path []
+                 , undoStack = Stack.push (model.ground, model.walls) model.undoStack
+                  }
+      non_autofill =
+        { model | mouseDown = b
+                , walls = 
+                    case model.erasing of
+                      False -> add_wall model.currentDrawing model.walls
+                      True -> remove_wall model.currentDrawing model.walls
+                , currentDrawing = Grid.Path []
+                , undoStack = Stack.push (model.ground, model.walls) model.undoStack }
+      rect =
+        { model | mouseDown = b
+                , ground =
+                    case model.erasing of
+                      False -> add_ground model.currentRect model.ground
+                      True -> remove_ground model.currentRect model.ground
+                , currentRect = Grid.Polygon []
+                , undoStack = Stack.push (model.ground, model.walls) model.undoStack }
+    in
        case (model.tool,b) of
-         (Tool.LockedAutofill, False) -> autofill
-         (Tool.FreeformAutofill, False) -> autofill
+         (Tool.LockedAutofill, False) ->
+           ( { autofill | heightSlider =
+                           new_h_slider (max_y_ground autofill.ground)
+                                        (SingleSlider.fetchValue autofill.heightSlider)
+                        , widthSlider =
+                           new_w_slider (max_x_ground autofill.ground)
+                                        (SingleSlider.fetchValue autofill.widthSlider) }, Cmd.none )
+         (Tool.FreeformAutofill, False) ->
+           ( { autofill | heightSlider =
+                            new_h_slider (max_y_ground autofill.ground)
+                                         (SingleSlider.fetchValue autofill.heightSlider)
+                        , widthSlider =
+                            new_w_slider (max_x_ground autofill.ground)
+                                         (SingleSlider.fetchValue autofill.widthSlider) }, Cmd.none )
          (Tool.Rectangle, False) ->
-              ( { model | mouseDown = b
-                        , ground = (Grid.Polygon []) :: model.ground }, Cmd.none )
-         (_, False) -> ( { model | mouseDown = b
-                                 , walls = (Grid.Path []) :: model.walls }, Cmd.none )
-         _ -> ( { model | mouseDown = b }, Cmd.none )
+           ( { rect | heightSlider =
+                       new_h_slider (max_y_ground rect.ground)
+                                    (SingleSlider.fetchValue rect.heightSlider)
+                    , widthSlider =
+                       new_w_slider (max_x_ground rect.ground)
+                                    (SingleSlider.fetchValue rect.widthSlider) }, Cmd.none )
+         (_, False) ->
+           ( { non_autofill | heightSlider =
+                               new_h_slider (max_y_walls non_autofill.walls)
+                                            (SingleSlider.fetchValue non_autofill.heightSlider)
+                            , widthSlider =
+                               new_w_slider (max_x_walls non_autofill.walls)
+                                            (SingleSlider.fetchValue non_autofill.widthSlider) }, Cmd.none )
+         _ -> ( { model | mouseDown = b
+                        , editState = True }, Cmd.none )
   
   -- SwitchTool handles switching between tools
-  SwitchTool t -> ( { model | tool = t }, Cmd.none )
+  SwitchTool t -> ( { model | editState = True
+                            , tool = t }, Cmd.none )
 
-  ClearBoard -> ( { model | ground = [], walls = [] }, Cmd.none )
+  ClearBoard -> ( { model | editState = True
+                          , ground = []
+                          , walls = []
+                          , undoStack = Stack.empty 5
+                          , redoStack = Stack.empty 5
+                          , heightSlider = new_h_slider 1 (SingleSlider.fetchValue model.heightSlider)
+                          , widthSlider = new_w_slider 1 (SingleSlider.fetchValue model.widthSlider) }, Cmd.none )
+
+  Undo ->
+    case Stack.pop model.undoStack of
+      Just ((prev_g, prev_w), rest) ->
+        ( { model | editState = True
+                  , redoStack = Stack.push (model.ground, model.walls) model.redoStack
+                  , ground = prev_g
+                  , walls = prev_w
+                  , undoStack = rest
+                  , heightSlider =
+                       new_h_slider (max (max_y_ground prev_g) (max_y_walls prev_w))
+                                    (SingleSlider.fetchValue model.heightSlider)
+                  , widthSlider =
+                       new_w_slider (max (max_x_ground prev_g) (max_x_walls prev_w))
+                                    (SingleSlider.fetchValue model.widthSlider) }, Cmd.none )
+      Nothing -> ( model, Cmd.none )
+
+  Redo ->
+    case Stack.pop model.redoStack of
+      Just ((redo_g, redo_w), rest) ->
+        ( { model | editState = True
+                  , undoStack = Stack.push (model.ground, model.walls) model.undoStack
+                  , ground = redo_g
+                  , walls = redo_w 
+                  , redoStack = rest
+                  , heightSlider =
+                      new_h_slider (max (max_y_ground redo_g) (max_y_walls redo_w))
+                                   (SingleSlider.fetchValue model.heightSlider)
+                  , widthSlider =
+                      new_w_slider (max (max_x_ground redo_g) (max_x_walls redo_w))
+                                   (SingleSlider.fetchValue model.widthSlider) }, Cmd.none )
+      Nothing -> ( model, Cmd.none )
+  
+  ToggleErasing ->
+    ( { model | erasing = case model.erasing of
+                            True -> False
+                            False -> True }, Cmd.none )
+
+  WidthSliderChange str ->
+    let
+        newSlider = SingleSlider.update str model.widthSlider
+    in
+        ( { model | editState = True
+                  , widthSlider = newSlider
+                  , mapWidth = round (SingleSlider.fetchValue model.widthSlider) }, Cmd.none )
+
+  HeightSliderChange str ->
+    let
+        newSlider = SingleSlider.update str model.heightSlider
+    in
+        ( { model | editState = True
+                  , heightSlider = newSlider
+                  , mapHeight = round (SingleSlider.fetchValue model.heightSlider) }, Cmd.none )
 
 
   RequestMapNames ->
@@ -273,18 +376,25 @@ button_attributes = [ Attr.style "margin" "0 auto"
                     , Attr.style "display" "block"
                     , Attr.style "margin-top" "15px" ]
 
+blah : Bool -> String
+blah b =
+  case b of
+    True -> "True"
+    False -> "False"
 
 view : Model -> Html Msg
 view model =
   let
     msg = "DND Map Designer Studio Suite Lite"
-    save_msg = "Right click and select \"Save Image As...\" to save"
     map = [draw_mouse, draw_paths, draw_ground, draw_grid, draw_bg]
             |> List.map (\f -> f model)
             |> C.group
             |> R.svg
-    clear = Html.button [ onClick ClearBoard, Attr.style "margin-left" "5px" ] [ Html.text "Clear" ]
-    tools = Html.select [ Attr.style "margin-right" "5px" ] Tool.toolOptions
+    clear = Html.button [ onClick ClearBoard, Attr.style "margin-left" "8px" ] [ Html.text "Clear" ]
+    tools = Html.select [ Attr.style "margin" "2px" ] Tool.toolOptions
+    undo = Html.button [ onClick Undo, Attr.style "margin-right" "5px" ] [ Html.text "Undo" ]
+    redo = Html.button [ onClick Redo, Attr.style "margin-right" "8px" ] [ Html.text "Redo" ]
+    eraser = Html.button [ onClick ToggleErasing, Attr.style "margin-left" "5px" ] [Html.text (blah model.erasing) ]
     savebar =
       Html.div [ Attr.align "center" ]
                [ Html.button [ onClick RequestMapNames ] [Html.text "Request Map Names"]
@@ -299,27 +409,28 @@ view model =
                   , Attr.style "font" "25px Optima, sans-serif"
                   , Attr.style "color" "#F7F9F9" ]
                   [ Html.text msg, Html.sup [ ] [ Html.text "TM"] ]
+        , Html.div [ Attr.align "center"
+                   , Attr.style "margin-bottom" "10px" ]
+                   [ SingleSlider.view model.widthSlider, SingleSlider.view model.heightSlider ]
         , Html.div [ onInput (\s -> case Tool.toTool s of
                                       Just t -> SwitchTool t
                                       Nothing -> SwitchTool Tool.FreeformPen)
                    , Attr.align "center"
                    , Attr.style "margin-bottom" "15px" ]
-                   (if model.editState then [ tools, clear ] else [])
+                   [ undo, redo, tools, clear ]
         , savebar
         , Html.div [ Attr.align "center"
                    , Attr.id "map_canvas_container"
-                   , Attr.style "display" (if model.editState then "block" else "none") ]
+                   , Attr.style "display" (if model.editState then "block" else "block") ]
                    [ map ]
         , Html.canvas
-            ( [Attr.style "display" (if model.editState then "none" else "block")]
+            ( [Attr.style "display" (if model.editState then "none" else "none")]
                 ++ (canvas_attributes model) ) [ ]
-        , Html.button ( (onClick SwitchState) :: button_attributes )
-                      [ Html.text (if model.editState then "Save" else "Edit") ]
-        , Html.div [ Attr.align "center"
-                   , Attr.style "margin-top" "15px"
-                   , Attr.style "color" "#F7F9F9"
-                   , Attr.style "font-family" "Optima, sans-serif" ]
-                   (if model.editState then [] else [ Html.text save_msg ])
+        , (if model.editState
+          then Html.button ( (onClick SwitchState) :: button_attributes )
+                           [ Html.text "Save as Image" ]
+          else Html.button ( (onClick Download) :: button_attributes )
+                           [ Html.text "Download" ])
         , map_gallery model.galleryMaps
         ]
 
@@ -361,7 +472,9 @@ draw_ground model =
     fill_style = C.uniform (Color.rgba 1 1 1 0.5)
     line_style = C.solid C.thick (C.uniform Color.black)
   in
-    List.map (shape_to_collage gridToCol (fill_style, line_style)) model.ground |> C.group
+    shape_to_collage gridToCol (fill_style, line_style) model.currentRect
+      :: List.map (shape_to_collage gridToCol (fill_style, line_style)) model.ground 
+           |> C.group
 
 draw_paths : Model -> C.Collage Msg
 draw_paths model =
@@ -370,8 +483,13 @@ draw_paths model =
       col = Color.rgb255 135 130 124
       testlineStyle = (\t -> C.broken [ (5*t,t), (9*t,t), (4*t,t),(6*t,t) ] ((toFloat t)*2.2) (C.uniform col))
       style = C.solid C.verythick (C.uniform Color.darkBrown)
+      ugh = { line_style | thickness = 80 }
+      dotstyle = C.broken [ (5, 2), (15, 2) ] 5 (C.uniform Color.darkBrown)
+      hedge = C.dot 5 (C.uniform Color.darkGreen)
   in
-      List.map (path_to_collage line_style) model.walls |> C.group
+      path_to_collage line_style model.currentDrawing
+        :: (List.map (path_to_collage line_style) model.walls) 
+            |> C.group
 
 draw_mouse : Model -> C.Collage Msg
 draw_mouse model =
@@ -551,9 +669,9 @@ add_ground new_shape shape_list =
         Nothing -> head :: add_ground new_shape tail
         Just u  -> add_ground u tail
 
-add_wall : Grid.Path -> Model -> Model
-add_wall path model =
-  { model | walls = path :: model.walls }
+add_wall : Grid.Path -> List Grid.Path -> List Grid.Path
+add_wall path path_list =
+  path :: path_list
 
 
 remove_ground_model : Grid.Shape -> Model -> Model
@@ -563,15 +681,91 @@ remove_ground_model shape model =
 remove_ground : Grid.Shape -> List Grid.Shape -> List Grid.Shape
 remove_ground shape shape_list =
   case shape_list of
-    [] -> []
+    [] -> Debug.log "rm ground 1" []
     head::tail ->
       case Grid.difference head shape of
-        Nothing -> head :: remove_ground shape shape_list
-        Just d  -> d ++ (remove_ground shape shape_list )
+        Nothing -> Debug.log "rm ground 2"  head :: remove_ground shape shape_list
+        Just d  -> Debug.log "rm ground 3" d ++ (remove_ground shape shape_list )
 
-remove_wall : Grid.Path -> Model -> Model
-remove_wall path model = model
+remove_wall : Grid.Path -> List Grid.Path -> List Grid.Path
+remove_wall path path_list = path_list
 
+
+
+-- Manipulating Shapes -----------------------------------------------
+
+max_y_shape : Grid.Shape -> Float
+max_y_shape s =
+  case s of
+    Grid.Polygon p ->
+      case Tuple.second (List.unzip p) |> List.maximum of
+        Nothing -> 1
+        Just y -> y
+    Grid.Composite outside holes -> max_y_shape (Grid.Polygon outside)
+
+max_y_ground : List Grid.Shape -> Float
+max_y_ground xs =
+  case List.map max_y_shape xs |> List.maximum of
+    Nothing -> 1
+    Just y -> y
+
+max_x_shape : Grid.Shape -> Float
+max_x_shape s =
+  case s of
+    Grid.Polygon p ->
+      case Tuple.first (List.unzip p) |> List.maximum of
+        Nothing -> 1
+        Just x -> x
+    Grid.Composite outside holes -> max_x_shape (Grid.Polygon outside)
+
+max_x_ground : List Grid.Shape -> Float
+max_x_ground xs =
+  case List.map max_x_shape xs |> List.maximum of
+    Nothing -> 1
+    Just x -> x
+
+max_y_path : Grid.Path -> Float
+max_y_path (Grid.Path p) =
+  case Tuple.second (List.unzip p) |> List.maximum of
+    Nothing -> 1
+    Just y -> y
+
+max_y_walls : List Grid.Path -> Float
+max_y_walls xs =
+  case List.map max_y_path xs |> List.maximum of
+    Nothing -> 1
+    Just y -> y
+
+max_x_path : Grid.Path -> Float
+max_x_path (Grid.Path p) =
+  case Tuple.first (List.unzip p) |> List.maximum of
+    Nothing -> 1
+    Just x -> x
+
+max_x_walls : List Grid.Path -> Float
+max_x_walls xs =
+  case List.map max_x_path xs |> List.maximum of
+    Nothing -> 1
+    Just x -> x
+
+-- Extra Helper Functions -------------------------------------------
+
+new_h_slider : Float -> Float -> SingleSlider.SingleSlider Msg
+new_h_slider min val =
+  SingleSlider.init
+    { min = min, max = 50, value = val, step = 1, onChange = HeightSliderChange }
+      |> SingleSlider.withMinFormatter (\value -> "")
+      |> SingleSlider.withMaxFormatter (\value -> "")
+      |> SingleSlider.withValueFormatter (\x y -> "")
+
+new_w_slider : Float -> Float -> SingleSlider.SingleSlider Msg
+new_w_slider min val =
+ SingleSlider.init
+    { min = min, max = 50, value = val, step = 1, onChange = WidthSliderChange }
+      |> SingleSlider.withMinFormatter (\value -> "")
+      |> SingleSlider.withMaxFormatter (\value -> "")
+      |> SingleSlider.withValueFormatter (\x y -> "")
+ 
 
 
 
