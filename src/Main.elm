@@ -8,6 +8,7 @@ import Html.Styled.Attributes as Attr
 import Html.Styled.Events exposing (..)
 
 import Css
+import Css.Global
 import Svg.Styled
 
 import String exposing (fromInt, fromFloat, repeat)
@@ -459,6 +460,12 @@ view model =
                            [ Html.text "Download" ])
         ]
       ]
+
+      -- Global style tag to show the gallery map label tags on mouseover
+      , Css.Global.global
+        [ Css.Global.typeSelector ".gallerymapcontainer:hover .gallerymaptag"
+          [Css.visibility Css.visible]
+        ]
     ]
 
 
@@ -569,14 +576,58 @@ make_thumbnail map =
     fill_style = C.uniform (Color.rgba 1 1 1 0.5)
     line_style = C.solid C.thick (C.uniform Color.black)
 
-    convert_ground = shape_to_collage (Grid.mapSame ((*) 15)) (fill_style, line_style)
-    convert_walls  = path_to_collage  (Grid.mapSame ((*) 15)) line_style
+    convert_ground = shape_to_collage (Grid.mapSame ((*) 8)) (fill_style, line_style)
+    convert_walls  = path_to_collage  (Grid.mapSame ((*) 8)) line_style
 
     display = List.map convert_walls map.walls ++ List.map convert_ground map.ground
       |> C.group |> R.svg |> Svg.Styled.fromUnstyled
   in
-    Html.div [ Attr.css [Css.cursor Css.pointer] ]
-      [ Html.div [onClick <| LoadGalleryMap map] [display]
+    Html.div
+      [ Attr.class "gallerymapcontainer"
+      , Attr.css
+        -- Relative positioning necessary for the child tooltip
+        [ Css.position Css.relative
+        -- Change mouse pointer to indicate selection is allowed
+        , Css.cursor Css.pointer
+        ]
+      -- When thumbnail clicked, load the given map
+      , onClick <| LoadGalleryMap map
+      ]
+      [ Html.div
+
+        -- Make the thumbnail fade a bit on mouseover
+        [ Attr.css [ Css.hover [ Css.opacity (Css.num 0.5) ] ] ]
+
+        -- The thumbnail image itself
+        [display]
+
+      -- The tooltip nametag
+      , Html.span
+        [ Attr.class "gallerymaptag"
+
+        -- The CSS styling
+        , Attr.css
+
+          -- Positioning: bottom left corner
+          [ Css.position Css.absolute
+          , Css.bottom  (Css.px 5)
+          , Css.left    (Css.px 5)
+
+          -- Rounded corners
+          , Css.padding      (Css.px 5)
+          , Css.borderRadius (Css.px 6)
+
+          -- Colors: white text on black background, slightly transparent
+          , Css.color           (Css.hex "#ffffff")
+          , Css.backgroundColor (Css.hex "#000000")
+          , Css.opacity         (Css.num 0.8)
+
+          -- Default to hidden, only shown on mouseover
+          , Css.visibility Css.hidden
+          ]
+        ]
+        [ Html.text map.name
+        ]
       ]
 
 
@@ -585,12 +636,31 @@ map_gallery : List Map -> Html Msg
 map_gallery maps =
   let
     thumbnails = List.map make_thumbnail maps
+
+    make_flexbox content =
+      Html.div
+        [ Attr.css
+            [ Css.flexBasis <| Css.pct 25
+            , Css.padding2 Css.zero (Css.px 8)
+            ]
+        , Attr.align "center"
+        ]
+        [ content ]
   in
     Html.div
       [ Attr.align "center" ]
       [ Html.h3 [Attr.style "color" "#F7F9F9"] [Html.text "Gallery"]
-      , Html.div [] (List.intersperse (Html.br [] []) thumbnails)
-      ]
+      , Html.div
+          [ Attr.css
+              [ Css.displayFlex
+              , Css.flexWrap Css.wrap
+              , Css.margin2 Css.zero (Css.px -8)
+              , Css.justifyContent Css.center
+              , Css.alignItems Css.center
+              ]
+          ]
+          (List.map make_flexbox thumbnails)
+        ]
 
 
 
