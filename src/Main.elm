@@ -105,25 +105,8 @@ initModel =
   , undoStack = Stack.empty 5
   , redoStack = Stack.empty 5
   , erasing = False
-  , widthSlider = SingleSlider.init
-                    { min = 1
-                    , max = 50
-                    , value = 20
-                    , step = 1
-                    , onChange = WidthSliderChange
-                    }
-                    |> SingleSlider.withMinFormatter (\val -> "")
-                    |> SingleSlider.withMaxFormatter (\val -> "")
-                    |> SingleSlider.withValueFormatter (\x y -> "")
-  , heightSlider = SingleSlider.init
-                    { min = 1
-                    , max = 50
-                    , value = 15
-                    , step = 1
-                    , onChange = HeightSliderChange }
-                    |> SingleSlider.withMinFormatter (\val -> "")
-                    |> SingleSlider.withMaxFormatter (\val -> "")
-                    |> SingleSlider.withValueFormatter (\x y -> "")
+  , widthSlider = new_w_slider 1 20
+  , heightSlider = new_h_slider 1 15
   }
 
 
