@@ -17,6 +17,7 @@ import Collage.Render as R
 import Color exposing (Color)
 
 import SingleSlider
+import ColorPicker
 
 import Grid
 import Tool
@@ -50,6 +51,7 @@ type alias Model =
   , widthSlider : SingleSlider.SingleSlider Msg
   , heightSlider : SingleSlider.SingleSlider Msg
   , currentColor : Color
+  , colorPicker : ColorPicker.State
   }
 
 type alias Coordinate = { x:Int, y:Int }
@@ -67,7 +69,7 @@ type Msg
   | Download
   | WidthSliderChange Float
   | HeightSliderChange Float
-  | SwitchColor Tool.PenColor
+  | ColorPickerMsg ColorPicker.Msg
 
 type alias Flags = ()
 
@@ -119,6 +121,7 @@ initModel =
   , widthSlider = new_w_slider 1 20
   , heightSlider = new_h_slider 1 15
   , currentColor = Color.black
+  , colorPicker = ColorPicker.empty
   }
 
 
@@ -154,14 +157,17 @@ update msg model = case msg of
                       Tool.Line ->
                         if model.mouseDown
                         then case (Grid.lineOrigin cur.path, ml) of
-                          (Just o, Just loc) -> newMP (Grid.makeLinePts o (toGrid loc)) model.currentColor
-                          (Nothing, Just loc) -> newMP (Grid.makeLinePts (toGrid loc) (toGrid loc)) model.currentColor
+                          (Just o, Just loc) ->
+                            newMP (Grid.makeLinePts o (toGrid loc)) model.currentColor
+                          (Nothing, Just loc) ->
+                            newMP (Grid.makeLinePts (toGrid loc) (toGrid loc)) model.currentColor
                           _ -> cur
                         else cur
                       Tool.Rectangle -> cur
                       _ -> if model.mouseDown
                            then case ml of
-                             Just loc -> newMP (Grid.addPointPath (toGrid loc) cur.path) model.currentColor
+                             Just loc ->
+                               newMP (Grid.addPointPath (toGrid loc) cur.path) model.currentColor
                              Nothing -> cur
                            else cur
                 , currentRect =
@@ -169,8 +175,10 @@ update msg model = case msg of
                       Tool.Rectangle ->
                         if model.mouseDown
                         then case (Grid.rectOrigin cur_r.shape, ml) of
-                          (Just o, Just loc) -> newMS (Grid.rach_makeRectPts o (toGrid loc)) model.currentColor
-                          (Nothing, Just loc) -> newMS (Grid.makeRectDims (toGrid loc) 0 0) model.currentColor
+                          (Just o, Just loc) ->
+                            newMS (Grid.rach_makeRectPts o (toGrid loc)) model.currentColor
+                          (Nothing, Just loc) ->
+                            newMS (Grid.makeRectDims (toGrid loc) 0 0) model.currentColor
                           _ -> cur_r
                         else cur_r
                       _ -> cur_r }, Cmd.none )
@@ -201,8 +209,7 @@ update msg model = case msg of
                           (newMS (Grid.pathToShape model.currentDrawing.path) model.currentDrawing.color)
                           model.ground
                  , currentDrawing = newMP (Grid.Path []) model.currentColor
-                 , undoStack = Stack.push (model.ground, model.walls) model.undoStack
-                  }
+                 , undoStack = Stack.push (model.ground, model.walls) model.undoStack }
       non_autofill =
         { model | mouseDown = b
                 , walls = 
@@ -255,9 +262,6 @@ update msg model = case msg of
   -- SwitchTool handles switching between tools
   SwitchTool t -> ( { model | editState = True
                             , tool = t }, Cmd.none )
-
-  SwitchColor c -> ( { model | editState = True
-                             , currentColor = (Tool.convertColor c) }, Cmd.none )
 
   ClearBoard -> ( { model | editState = True
                           , ground = []
@@ -320,6 +324,13 @@ update msg model = case msg of
                   , heightSlider = newSlider
                   , mapHeight = round (SingleSlider.fetchValue model.heightSlider) }, Cmd.none )
 
+  ColorPickerMsg message ->
+    let
+        ( m, color ) = ColorPicker.update message model.currentColor model.colorPicker
+    in
+        ( { model | colorPicker = m
+                  , currentColor = color |> Maybe.withDefault model.currentColor }, Cmd.none )
+
 
 
 
@@ -358,7 +369,8 @@ view model =
     undo = Html.button [ onClick Undo, Attr.style "margin-right" "5px" ] [ Html.text "Undo" ]
     redo = Html.button [ onClick Redo, Attr.style "margin-right" "8px" ] [ Html.text "Redo" ]
     eraser = Html.button [ onClick ToggleErasing, Attr.style "margin-left" "5px" ] [Html.text (blah model.erasing) ]
-    pencolors = Html.select [] Tool.penColorOptions
+    colorpicker = Html.div [ Attr.style "margin" "10px" ] [ ColorPicker.view model.currentColor model.colorPicker
+                                  |> Html.map ColorPickerMsg ]
   in
     Html.div []
         [ Html.h3 [ Attr.align "center"
@@ -374,12 +386,7 @@ view model =
                                       Nothing -> SwitchTool Tool.FreeformPen)
                    , Attr.align "center"
                    , Attr.style "margin-bottom" "15px" ]
-                   [ undo, redo, tools, clear ]
-        , Html.div [ onInput (\s -> case Tool.toPenColor s of
-                                      Just c -> SwitchColor c
-                                      Nothing -> SwitchColor Tool.Red)
-                   , Attr.align "center" ]
-                   [ pencolors ]
+                   [ colorpicker, undo, redo, tools, eraser, clear ]
         , Html.div [ Attr.align "center"
                    , Attr.id "map_canvas_container"
                    , Attr.style "display" (if model.editState then "block" else "block") ]
