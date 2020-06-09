@@ -27,6 +27,21 @@ decodePoint = Result.toMaybe << Decode.decodeValue pointDecoder
 
 
 
+-- Paths
+
+encodePath : Path -> Encode.Value
+encodePath path =
+  case path of
+    Path ps -> Encode.list encodePoint ps
+
+pathDecoder : Decode.Decoder Path
+pathDecoder = Decode.map Path <| Decode.list pointDecoder
+
+decodePath : Encode.Value -> Maybe Path
+decodePath = Result.toMaybe << Decode.decodeValue pathDecoder
+
+
+
 -- Polygons
 
 encodePolygon : Polygon -> Encode.Value
