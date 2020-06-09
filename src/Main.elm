@@ -289,14 +289,16 @@ update msg model = case msg of
     let
         newSlider = SingleSlider.update str model.widthSlider
     in
-        ( { model | widthSlider = newSlider
+        ( { model | editState = True
+                  , widthSlider = newSlider
                   , mapWidth = round (SingleSlider.fetchValue model.widthSlider) }, Cmd.none )
 
   HeightSliderChange str ->
     let
         newSlider = SingleSlider.update str model.heightSlider
     in
-        ( { model | heightSlider = newSlider
+        ( { model | editState = True
+                  , heightSlider = newSlider
                   , mapHeight = round (SingleSlider.fetchValue model.heightSlider) }, Cmd.none )
 
 
