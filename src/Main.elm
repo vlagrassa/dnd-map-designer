@@ -1,4 +1,4 @@
-port module Main exposing (main)
+port module Main exposing (..)
 
 -- Add/modify imports if you'd like. ---------------------------------
 
@@ -194,37 +194,62 @@ update msg model = case msg of
   MouseUpDown b ->
     let
       autofill =
-        ( { model | mouseDown = b
-                  , ground =
-                      case model.erasing of
-                        False ->
-                          add_ground (Grid.pathToShape model.currentDrawing) model.ground
-                        True ->
-                          remove_ground (Grid.pathToShape model.currentDrawing) model.ground
-                  , currentDrawing = Grid.Path []
-                  , undoStack = Stack.push (model.ground, model.walls) model.undoStack }, Cmd.none )
+         { model | mouseDown = b
+                 , ground =
+                    case model.erasing of
+                      False ->
+                        add_ground (Grid.pathToShape model.currentDrawing) model.ground
+                      True ->
+                        remove_ground (Grid.pathToShape model.currentDrawing) model.ground
+                 , currentDrawing = Grid.Path []
+                 , undoStack = Stack.push (model.ground, model.walls) model.undoStack
+                  }
       non_autofill =
-        ( { model | mouseDown = b
-                  , walls = 
-                      case model.erasing of
-                        False -> add_wall model.currentDrawing model.walls
-                        True -> remove_wall model.currentDrawing model.walls
-                  , currentDrawing = Grid.Path []
-                  , undoStack = Stack.push (model.ground, model.walls) model.undoStack }, Cmd.none )
+        { model | mouseDown = b
+                , walls = 
+                    case model.erasing of
+                      False -> add_wall model.currentDrawing model.walls
+                      True -> remove_wall model.currentDrawing model.walls
+                , currentDrawing = Grid.Path []
+                , undoStack = Stack.push (model.ground, model.walls) model.undoStack }
       rect =
-        ( { model | mouseDown = b
-                  , ground =
-                      case model.erasing of
-                        False -> add_ground model.currentRect model.ground
-                        True -> remove_ground model.currentRect model.ground
-                  , currentRect = Grid.Polygon []
-                  , undoStack = Stack.push (model.ground, model.walls) model.undoStack }, Cmd.none )
+        { model | mouseDown = b
+                , ground =
+                    case model.erasing of
+                      False -> add_ground model.currentRect model.ground
+                      True -> remove_ground model.currentRect model.ground
+                , currentRect = Grid.Polygon []
+                , undoStack = Stack.push (model.ground, model.walls) model.undoStack }
     in
        case (model.tool,b) of
-         (Tool.LockedAutofill, False) -> autofill
-         (Tool.FreeformAutofill, False) -> autofill
-         (Tool.Rectangle, False) -> rect
-         (_, False) -> non_autofill
+         (Tool.LockedAutofill, False) ->
+           ( { autofill | heightSlider =
+                           new_h_slider (max_y_ground autofill.ground)
+                                        (SingleSlider.fetchValue autofill.heightSlider)
+                        , widthSlider =
+                           new_w_slider (max_x_ground autofill.ground)
+                                        (SingleSlider.fetchValue autofill.widthSlider) }, Cmd.none )
+         (Tool.FreeformAutofill, False) ->
+           ( { autofill | heightSlider =
+                            new_h_slider (max_y_ground autofill.ground)
+                                         (SingleSlider.fetchValue autofill.heightSlider)
+                        , widthSlider =
+                            new_w_slider (max_x_ground autofill.ground)
+                                         (SingleSlider.fetchValue autofill.widthSlider) }, Cmd.none )
+         (Tool.Rectangle, False) ->
+           ( { rect | heightSlider =
+                       new_h_slider (max_y_ground rect.ground)
+                                    (SingleSlider.fetchValue rect.heightSlider)
+                    , widthSlider =
+                       new_w_slider (max_x_ground rect.ground)
+                                    (SingleSlider.fetchValue rect.widthSlider) }, Cmd.none )
+         (_, False) ->
+           ( { non_autofill | heightSlider =
+                               new_h_slider (max_y_walls non_autofill.walls)
+                                            (SingleSlider.fetchValue non_autofill.heightSlider)
+                            , widthSlider =
+                               new_w_slider (max_x_walls non_autofill.walls)
+                                            (SingleSlider.fetchValue non_autofill.widthSlider) }, Cmd.none )
          _ -> ( { model | mouseDown = b
                         , editState = True }, Cmd.none )
   
@@ -236,7 +261,9 @@ update msg model = case msg of
                           , ground = []
                           , walls = []
                           , undoStack = Stack.empty 5
-                          , redoStack = Stack.empty 5 }, Cmd.none )
+                          , redoStack = Stack.empty 5
+                          , heightSlider = new_h_slider 1 (SingleSlider.fetchValue model.heightSlider)
+                          , widthSlider = new_w_slider 1 (SingleSlider.fetchValue model.widthSlider) }, Cmd.none )
 
   Undo ->
     case Stack.pop model.undoStack of
@@ -245,7 +272,13 @@ update msg model = case msg of
                   , redoStack = Stack.push (model.ground, model.walls) model.redoStack
                   , ground = prev_g
                   , walls = prev_w
-                  , undoStack = rest }, Cmd.none )
+                  , undoStack = rest
+                  , heightSlider =
+                       new_h_slider (max (max_y_ground prev_g) (max_y_walls prev_w))
+                                    (SingleSlider.fetchValue model.heightSlider)
+                  , widthSlider =
+                       new_w_slider (max (max_x_ground prev_g) (max_x_walls prev_w))
+                                    (SingleSlider.fetchValue model.widthSlider) }, Cmd.none )
       Nothing -> ( model, Cmd.none )
 
   Redo ->
@@ -254,8 +287,14 @@ update msg model = case msg of
         ( { model | editState = True
                   , undoStack = Stack.push (model.ground, model.walls) model.undoStack
                   , ground = redo_g
-                  , walls = redo_w
-                  , redoStack = rest }, Cmd.none )
+                  , walls = redo_w 
+                  , redoStack = rest
+                  , heightSlider =
+                      new_h_slider (max (max_y_ground redo_g) (max_y_walls redo_w))
+                                   (SingleSlider.fetchValue model.heightSlider)
+                  , widthSlider =
+                      new_w_slider (max (max_x_ground redo_g) (max_x_walls redo_w))
+                                   (SingleSlider.fetchValue model.widthSlider) }, Cmd.none )
       Nothing -> ( model, Cmd.none )
   
   ToggleErasing ->
@@ -574,3 +613,80 @@ remove_ground shape shape_list =
 
 remove_wall : Grid.Path -> List Grid.Path -> List Grid.Path
 remove_wall path path_list = path_list
+
+
+
+-- Manipulating Shapes -----------------------------------------------
+
+max_y_shape : Grid.Shape -> Float
+max_y_shape s =
+  case s of
+    Grid.Polygon p ->
+      case Tuple.second (List.unzip p) |> List.maximum of
+        Nothing -> 1
+        Just y -> y
+    Grid.Composite outside holes -> max_y_shape (Grid.Polygon outside)
+
+max_y_ground : List Grid.Shape -> Float
+max_y_ground xs =
+  case List.map max_y_shape xs |> List.maximum of
+    Nothing -> 1
+    Just y -> y
+
+max_x_shape : Grid.Shape -> Float
+max_x_shape s =
+  case s of
+    Grid.Polygon p ->
+      case Tuple.first (List.unzip p) |> List.maximum of
+        Nothing -> 1
+        Just x -> x
+    Grid.Composite outside holes -> max_x_shape (Grid.Polygon outside)
+
+max_x_ground : List Grid.Shape -> Float
+max_x_ground xs =
+  case List.map max_x_shape xs |> List.maximum of
+    Nothing -> 1
+    Just x -> x
+
+max_y_path : Grid.Path -> Float
+max_y_path (Grid.Path p) =
+  case Tuple.second (List.unzip p) |> List.maximum of
+    Nothing -> 1
+    Just y -> y
+
+max_y_walls : List Grid.Path -> Float
+max_y_walls xs =
+  case List.map max_y_path xs |> List.maximum of
+    Nothing -> 1
+    Just y -> y
+
+max_x_path : Grid.Path -> Float
+max_x_path (Grid.Path p) =
+  case Tuple.first (List.unzip p) |> List.maximum of
+    Nothing -> 1
+    Just x -> x
+
+max_x_walls : List Grid.Path -> Float
+max_x_walls xs =
+  case List.map max_x_path xs |> List.maximum of
+    Nothing -> 1
+    Just x -> x
+
+-- Extra Helper Functions -------------------------------------------
+
+new_h_slider : Float -> Float -> SingleSlider.SingleSlider Msg
+new_h_slider min val =
+  SingleSlider.init
+    { min = min, max = 50, value = val, step = 1, onChange = HeightSliderChange }
+      |> SingleSlider.withMinFormatter (\value -> "")
+      |> SingleSlider.withMaxFormatter (\value -> "")
+      |> SingleSlider.withValueFormatter (\x y -> "")
+
+new_w_slider : Float -> Float -> SingleSlider.SingleSlider Msg
+new_w_slider min val =
+ SingleSlider.init
+    { min = min, max = 50, value = val, step = 1, onChange = WidthSliderChange }
+      |> SingleSlider.withMinFormatter (\value -> "")
+      |> SingleSlider.withMaxFormatter (\value -> "")
+      |> SingleSlider.withValueFormatter (\x y -> "")
+ 
