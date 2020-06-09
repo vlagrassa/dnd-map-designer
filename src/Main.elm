@@ -3,9 +3,12 @@ port module Main exposing (..)
 -- Add/modify imports if you'd like. ---------------------------------
 
 import Browser
-import Html exposing (Html)
-import Html.Attributes as Attr
-import Html.Events exposing (..)
+import Html.Styled as Html exposing (Html)
+import Html.Styled.Attributes as Attr
+import Html.Styled.Events exposing (..)
+
+import Css
+import Svg.Styled
 
 import String exposing (fromInt, fromFloat, repeat)
 import Debug
@@ -32,7 +35,7 @@ main : Program Flags Model Msg
 main = 
   Browser.element
     { init = init
-    , view = view
+    , view = view >> Html.toUnstyled
     , update = update
     , subscriptions = subscriptions
     }
@@ -78,6 +81,7 @@ type Msg
   | RequestGallery
   | LoadGallery (List Map)
   | UploadMap Encode.Value
+  | LoadGalleryMap Map
   | Undo
   | Redo
   | ToggleErasing
@@ -357,6 +361,9 @@ update msg model = case msg of
   UploadMap map ->
     (model, uploadMap map)
 
+  LoadGalleryMap map ->
+    ( {model | ground = map.ground, walls = map.walls }, Cmd.none)
+
 
 
 
@@ -390,6 +397,7 @@ view model =
             |> List.map (\f -> f model)
             |> C.group
             |> R.svg
+            |> Svg.Styled.fromUnstyled
     clear = Html.button [ onClick ClearBoard, Attr.style "margin-left" "8px" ] [ Html.text "Clear" ]
     tools = Html.select [ Attr.style "margin" "2px" ] Tool.toolOptions
     undo = Html.button [ onClick Undo, Attr.style "margin-right" "5px" ] [ Html.text "Undo" ]
@@ -403,7 +411,26 @@ view model =
                , Html.button [ onClick <| UploadMap (encode_model model) ] [Html.text "Upload"]
                ]
   in
-    Html.div []
+    --sidebar
+    Html.div [ Attr.style "display" "flex" ]
+    [
+      -- Styling to create the sidebar
+      Html.aside
+      [ Attr.css [ Css.width <| Css.pct 20 ]
+      , Attr.style "background" "#444444"
+      , Attr.align "center"
+      ]
+      -- Gallery of database maps in the sidebar
+      [ map_gallery model.galleryMaps ]
+    ,
+      Html.div
+      [ Attr.css
+        [ Css.flex <| Css.int 1
+        , Css.overflow Css.auto
+        ]
+      ]
+    [
+      Html.div []
         [ Html.h3 [ Attr.align "center"
                   , Attr.style "margin" "15px"
                   , Attr.style "font" "25px Optima, sans-serif"
@@ -411,7 +438,7 @@ view model =
                   [ Html.text msg, Html.sup [ ] [ Html.text "TM"] ]
         , Html.div [ Attr.align "center"
                    , Attr.style "margin-bottom" "10px" ]
-                   [ SingleSlider.view model.widthSlider, SingleSlider.view model.heightSlider ]
+                   (List.map Html.fromUnstyled [ SingleSlider.view model.widthSlider, SingleSlider.view model.heightSlider ])
         , Html.div [ onInput (\s -> case Tool.toTool s of
                                       Just t -> SwitchTool t
                                       Nothing -> SwitchTool Tool.FreeformPen)
@@ -431,8 +458,9 @@ view model =
                            [ Html.text "Save as Image" ]
           else Html.button ( (onClick Download) :: button_attributes )
                            [ Html.text "Download" ])
-        , map_gallery model.galleryMaps
         ]
+      ]
+    ]
 
 
 -- Drawing Map Objects -----------------------------------------------
@@ -487,8 +515,8 @@ draw_paths model =
       dotstyle = C.broken [ (5, 2), (15, 2) ] 5 (C.uniform Color.darkBrown)
       hedge = C.dot 5 (C.uniform Color.darkGreen)
   in
-      path_to_collage line_style model.currentDrawing
-        :: (List.map (path_to_collage line_style) model.walls) 
+      path_to_collage gridToCol line_style model.currentDrawing
+        :: (List.map (path_to_collage gridToCol line_style) model.walls)
             |> C.group
 
 draw_mouse : Model -> C.Collage Msg
@@ -536,25 +564,34 @@ draw_menu model =
 
 
 
-make_thumbnail : Map -> C.Collage Msg
+make_thumbnail : Map -> Html Msg
 make_thumbnail map =
   let
     fill_style = C.uniform (Color.rgba 1 1 1 0.5)
     line_style = C.solid C.thick (C.uniform Color.black)
 
+    convert_ground = shape_to_collage (Grid.mapSame ((*) 15)) (fill_style, line_style)
+    convert_walls  = path_to_collage  (Grid.mapSame ((*) 15)) line_style
+
+    display = List.map convert_walls map.walls ++ List.map convert_ground map.ground
+      |> C.group |> R.svg |> Svg.Styled.fromUnstyled
   in
-    List.map (shape_to_collage (Grid.mapSame ((*) 15)) (fill_style, line_style)) map.ground
-      |> C.group
+    Html.div [ Attr.css [Css.cursor Css.pointer] ]
+      [ Html.div [onClick <| LoadGalleryMap map] [display]
+      ]
+
 
 
 map_gallery : List Map -> Html Msg
 map_gallery maps =
   let
-    thumbnails = List.map (make_thumbnail >> R.svg) maps
+    thumbnails = List.map make_thumbnail maps
   in
     Html.div
-      []
-      ((Html.text "Gallery") :: thumbnails)
+      [ Attr.align "center" ]
+      [ Html.h3 [Attr.style "color" "#F7F9F9"] [Html.text "Gallery"]
+      , Html.div [] (List.intersperse (Html.br [] []) thumbnails)
+      ]
 
 
 
@@ -646,9 +683,9 @@ shape_to_collage grid_to_collage (fill, line) shape =
         in
           C.group (outlines ++ [inside])
 
-path_to_collage : (C.LineStyle) -> Grid.Path -> C.Collage Msg
-path_to_collage line (Grid.Path p) =
-  (C.path (List.map gridToCol p)) |> C.traced line
+path_to_collage : (Grid.Point -> C.Point) ->  C.LineStyle -> Grid.Path -> C.Collage Msg
+path_to_collage grid_to_collage line (Grid.Path p) =
+  (C.path (List.map grid_to_collage p)) |> C.traced line
 
 
 
