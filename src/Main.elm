@@ -400,7 +400,7 @@ view : Model -> Html Msg
 view model =
   let
     msg = "D\u{0026}D Map Designer Studio Suite Lite"
-    map = [draw_mouse, draw_grid, draw_paths, draw_ground, draw_bg]
+    map = [draw_mouse, draw_paths, draw_ground, draw_grid, draw_bg]
             |> List.map (\f -> f model)
             |> C.group
             |> R.svg
@@ -498,7 +498,7 @@ draw_grid model =
   let
     scale = scaleGridToCol_i
 
-    grid_style = C.traced (C.solid C.thin (C.uniform (Color.rgba 0 0 0 0.1)))
+    grid_style = C.traced (C.solid C.thin (C.uniform Color.gray))
 
     h_grid_lines = (List.range 0 model.mapHeight)
       |> List.map (\y -> C.segment (0, scale y) (scale model.mapWidth, scale y))
