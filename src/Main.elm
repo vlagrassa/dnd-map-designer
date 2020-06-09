@@ -156,7 +156,7 @@ update msg model = case msg of
                                ([], Just loc) ->
                                   [ Grid.Path [(toGrid loc)] ]
                                (hd::tl, Just loc) ->
-                                  (Grid.addPointPath (toGrid loc) hd)::tl
+                                  (Grid.addPointIfBeyond 0.1 (toGrid loc) hd)::tl
                                _ -> ws
                          else ws
 
