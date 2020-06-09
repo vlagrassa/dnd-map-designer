@@ -329,7 +329,7 @@ blah b =
 view : Model -> Html Msg
 view model =
   let
-    msg = "DND Map Designer Studio Suite Lite"
+    msg = "D\u{0026}D Map Designer Studio Suite Lite"
     map = [draw_mouse, draw_paths, draw_ground, draw_grid, draw_bg]
             |> List.map (\f -> f model)
             |> C.group
@@ -345,7 +345,7 @@ view model =
                   , Attr.style "margin" "15px"
                   , Attr.style "font" "25px Optima, sans-serif"
                   , Attr.style "color" "#F7F9F9" ]
-                  [ Html.text msg, Html.sup [ ] [ Html.text "TM"] ]
+                  [ Html.text msg, Html.sup [ ] [ Html.text "\u{2122}"] ]
         , Html.div [ Attr.align "center"
                    , Attr.style "margin-bottom" "10px" ]
                    [ SingleSlider.view model.widthSlider, SingleSlider.view model.heightSlider ]
