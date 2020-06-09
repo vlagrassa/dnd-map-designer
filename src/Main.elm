@@ -37,18 +37,19 @@ type alias Model =
   { mouseLocation : Maybe Coordinate
   , mapHeight : Int
   , mapWidth : Int
-  , ground : List Grid.Shape
-  , walls  : List Grid.Path
-  , currentDrawing : Grid.Path
-  , currentRect : Grid.Shape
+  , ground : List MapShape
+  , walls  : List MapPath
+  , currentDrawing : MapPath
+  , currentRect : MapShape
   , editState : Bool
   , mouseDown : Bool
   , tool : Tool.Tool
-  , undoStack : Stack.Stack (List Grid.Shape, List Grid.Path)
-  , redoStack : Stack.Stack (List Grid.Shape, List Grid.Path)
+  , undoStack : Stack.Stack (List MapShape, List MapPath)
+  , redoStack : Stack.Stack (List MapShape, List MapPath)
   , erasing : Bool
   , widthSlider : SingleSlider.SingleSlider Msg
   , heightSlider : SingleSlider.SingleSlider Msg
+  , currentColor : Color
   }
 
 type alias Coordinate = { x:Int, y:Int }
@@ -66,10 +67,20 @@ type Msg
   | Download
   | WidthSliderChange Float
   | HeightSliderChange Float
+  | SwitchColor Tool.PenColor
 
 type alias Flags = ()
 
+type alias MapShape = { shape : Grid.Shape, color : Color }
+type alias MapPath = { path : Grid.Path, color : Color }
 
+newMS : Grid.Shape -> Color -> MapShape
+newMS s c =
+  { shape = s, color = c }
+
+newMP : Grid.Path -> Color -> MapPath
+newMP p c =
+  { path = p, color = c }
 
 
 -- Ports -------------------------------------------------------------
@@ -95,10 +106,10 @@ initModel =
   { mouseLocation = Nothing
   , mapHeight = 15
   , mapWidth = 20
-  , ground = [ ]
-  , walls = [ ]
-  , currentDrawing = Grid.Path [ ]
-  , currentRect = Grid.Polygon []
+  , ground = []
+  , walls = []
+  , currentDrawing = newMP (Grid.Path []) Color.black
+  , currentRect = newMS (Grid.Polygon []) Color.black
   , editState = True
   , mouseDown = False
   , tool = Tool.FreeformPen
@@ -107,6 +118,7 @@ initModel =
   , erasing = False
   , widthSlider = new_w_slider 1 20
   , heightSlider = new_h_slider 1 15
+  , currentColor = Color.black
   }
 
 
@@ -141,24 +153,24 @@ update msg model = case msg of
                     case model.tool of
                       Tool.Line ->
                         if model.mouseDown
-                        then case (Grid.lineOrigin cur, ml) of
-                          (Just o, Just loc) -> Grid.makeLinePts o (toGrid loc)
-                          (Nothing, Just loc) -> Grid.makeLinePts (toGrid loc) (toGrid loc)
+                        then case (Grid.lineOrigin cur.path, ml) of
+                          (Just o, Just loc) -> newMP (Grid.makeLinePts o (toGrid loc)) model.currentColor
+                          (Nothing, Just loc) -> newMP (Grid.makeLinePts (toGrid loc) (toGrid loc)) model.currentColor
                           _ -> cur
                         else cur
                       Tool.Rectangle -> cur
                       _ -> if model.mouseDown
                            then case ml of
-                             Just loc -> Grid.addPointPath (toGrid loc) cur
+                             Just loc -> newMP (Grid.addPointPath (toGrid loc) cur.path) model.currentColor
                              Nothing -> cur
                            else cur
                 , currentRect =
                     case model.tool of
                       Tool.Rectangle ->
                         if model.mouseDown
-                        then case (Grid.rectOrigin cur_r, ml) of
-                          (Just o, Just loc) -> Grid.rach_makeRectPts o (toGrid loc)
-                          (Nothing, Just loc) -> Grid.makeRectDims (toGrid loc) 0 0
+                        then case (Grid.rectOrigin cur_r.shape, ml) of
+                          (Just o, Just loc) -> newMS (Grid.rach_makeRectPts o (toGrid loc)) model.currentColor
+                          (Nothing, Just loc) -> newMS (Grid.makeRectDims (toGrid loc) 0 0) model.currentColor
                           _ -> cur_r
                         else cur_r
                       _ -> cur_r }, Cmd.none )
@@ -181,10 +193,14 @@ update msg model = case msg of
                  , ground =
                     case model.erasing of
                       False ->
-                        add_ground (Grid.pathToShape model.currentDrawing) model.ground
+                        add_ground
+                          (newMS (Grid.pathToShape model.currentDrawing.path) model.currentDrawing.color)
+                          model.ground
                       True ->
-                        remove_ground (Grid.pathToShape model.currentDrawing) model.ground
-                 , currentDrawing = Grid.Path []
+                        remove_ground
+                          (newMS (Grid.pathToShape model.currentDrawing.path) model.currentDrawing.color)
+                          model.ground
+                 , currentDrawing = newMP (Grid.Path []) model.currentColor
                  , undoStack = Stack.push (model.ground, model.walls) model.undoStack
                   }
       non_autofill =
@@ -193,7 +209,7 @@ update msg model = case msg of
                     case model.erasing of
                       False -> add_wall model.currentDrawing model.walls
                       True -> remove_wall model.currentDrawing model.walls
-                , currentDrawing = Grid.Path []
+                , currentDrawing = newMP (Grid.Path []) model.currentColor
                 , undoStack = Stack.push (model.ground, model.walls) model.undoStack }
       rect =
         { model | mouseDown = b
@@ -201,7 +217,7 @@ update msg model = case msg of
                     case model.erasing of
                       False -> add_ground model.currentRect model.ground
                       True -> remove_ground model.currentRect model.ground
-                , currentRect = Grid.Polygon []
+                , currentRect = newMS (Grid.Polygon []) model.currentColor
                 , undoStack = Stack.push (model.ground, model.walls) model.undoStack }
     in
        case (model.tool,b) of
@@ -239,6 +255,9 @@ update msg model = case msg of
   -- SwitchTool handles switching between tools
   SwitchTool t -> ( { model | editState = True
                             , tool = t }, Cmd.none )
+
+  SwitchColor c -> ( { model | editState = True
+                             , currentColor = (Tool.convertColor c) }, Cmd.none )
 
   ClearBoard -> ( { model | editState = True
                           , ground = []
@@ -339,6 +358,7 @@ view model =
     undo = Html.button [ onClick Undo, Attr.style "margin-right" "5px" ] [ Html.text "Undo" ]
     redo = Html.button [ onClick Redo, Attr.style "margin-right" "8px" ] [ Html.text "Redo" ]
     eraser = Html.button [ onClick ToggleErasing, Attr.style "margin-left" "5px" ] [Html.text (blah model.erasing) ]
+    pencolors = Html.select [] Tool.penColorOptions
   in
     Html.div []
         [ Html.h3 [ Attr.align "center"
@@ -355,6 +375,11 @@ view model =
                    , Attr.align "center"
                    , Attr.style "margin-bottom" "15px" ]
                    [ undo, redo, tools, clear ]
+        , Html.div [ onInput (\s -> case Tool.toPenColor s of
+                                      Just c -> SwitchColor c
+                                      Nothing -> SwitchColor Tool.Red)
+                   , Attr.align "center" ]
+                   [ pencolors ]
         , Html.div [ Attr.align "center"
                    , Attr.id "map_canvas_container"
                    , Attr.style "display" (if model.editState then "block" else "block") ]
@@ -407,8 +432,8 @@ draw_ground model =
     fill_style = C.uniform (Color.rgba 1 1 1 0.5)
     line_style = C.solid C.thick (C.uniform Color.black)
   in
-    shape_to_collage (fill_style, line_style) model.currentRect
-      :: List.map (shape_to_collage (fill_style, line_style)) model.ground 
+    shape_to_collage fill_style model.currentRect
+      :: List.map (shape_to_collage fill_style) model.ground 
            |> C.group
 
 draw_paths : Model -> C.Collage Msg
@@ -422,8 +447,8 @@ draw_paths model =
       dotstyle = C.broken [ (5, 2), (15, 2) ] 5 (C.uniform Color.darkBrown)
       hedge = C.dot 5 (C.uniform Color.darkGreen)
   in
-      path_to_collage line_style model.currentDrawing
-        :: (List.map (path_to_collage line_style) model.walls) 
+      path_to_collage model.currentDrawing
+        :: (List.map path_to_collage model.walls) 
             |> C.group
 
 draw_mouse : Model -> C.Collage Msg
@@ -534,9 +559,12 @@ jsToGridLocked model coord =
 
 -- Converting Shapes to Collage Elements -----------------------------
 
-shape_to_collage : (C.FillStyle, C.LineStyle) -> Grid.Shape -> C.Collage Msg
-shape_to_collage (fill, line) shape =
+shape_to_collage : C.FillStyle -> MapShape -> C.Collage Msg
+shape_to_collage fill ms =
   let
+    shape = ms.shape
+    col = ms.color
+    line = C.solid C.thick (C.uniform col)
     scale_and_convert = List.map gridToCol >> C.polygon
     style_both =    C.styled (fill, line)
     style_outline = C.styled (C.transparent, line)
@@ -555,9 +583,15 @@ shape_to_collage (fill, line) shape =
         in
           C.group (outlines ++ [inside])
 
-path_to_collage : (C.LineStyle) -> Grid.Path -> C.Collage Msg
-path_to_collage line (Grid.Path p) =
-  (C.path (List.map gridToCol p)) |> C.traced line
+path_to_collage : MapPath -> C.Collage Msg
+path_to_collage mp =
+  let
+      path = mp.path
+      col = mp.color
+      line = C.solid C.thick (C.uniform col)
+  in
+      case path of
+        Grid.Path p -> (C.path (List.map gridToCol p)) |> C.traced line
 
 
 
@@ -565,43 +599,51 @@ path_to_collage line (Grid.Path p) =
 -- Adding and Removing Shapes ----------------------------------------
 
 
-add_ground_model : Grid.Shape -> Model -> Model
+add_ground_model : MapShape -> Model -> Model
 add_ground_model shape model =
   {model | ground = add_ground shape model.ground}
 
-add_ground : Grid.Shape -> List Grid.Shape -> List Grid.Shape
+add_ground : MapShape -> List MapShape -> List MapShape
 add_ground new_shape shape_list =
   case shape_list of
     [] -> [new_shape]
     head::tail ->
-      case Grid.union head new_shape of
+      case Grid.union head.shape new_shape.shape of
         Nothing -> head :: add_ground new_shape tail
-        Just u  -> add_ground u tail
+        Just u  -> add_ground (newMS u head.color) tail
 
-add_wall : Grid.Path -> List Grid.Path -> List Grid.Path
+add_wall : MapPath -> List MapPath -> List MapPath
 add_wall path path_list =
   path :: path_list
 
 
-remove_ground_model : Grid.Shape -> Model -> Model
+remove_ground_model : MapShape -> Model -> Model
 remove_ground_model shape model =
   {model | ground = remove_ground shape model.ground}
 
-remove_ground : Grid.Shape -> List Grid.Shape -> List Grid.Shape
+remove_ground : MapShape -> List MapShape -> List MapShape
 remove_ground shape shape_list =
   case shape_list of
-    [] -> Debug.log "rm ground 1" []
+    [] -> []
     head::tail ->
-      case Grid.difference head shape of
-        Nothing -> Debug.log "rm ground 2"  head :: remove_ground shape shape_list
-        Just d  -> Debug.log "rm ground 3" d ++ (remove_ground shape shape_list )
+      case Grid.difference head.shape shape.shape of
+        Nothing -> head :: remove_ground shape tail
+        Just d  -> (List.map (\x -> newMS x head.color) d) ++ (remove_ground shape tail)
 
-remove_wall : Grid.Path -> List Grid.Path -> List Grid.Path
+remove_wall : MapPath -> List MapPath -> List MapPath
 remove_wall path path_list = path_list
 
 
 
 -- Manipulating Shapes -----------------------------------------------
+
+msToShapeList : List MapShape -> List Grid.Shape
+msToShapeList mss =
+  List.map (\x -> x.shape) mss
+
+mpToPathList : List MapPath -> List Grid.Path
+mpToPathList mps =
+  List.map (\x -> x.path) mps
 
 max_y_shape : Grid.Shape -> Float
 max_y_shape s =
@@ -612,9 +654,9 @@ max_y_shape s =
         Just y -> y
     Grid.Composite outside holes -> max_y_shape (Grid.Polygon outside)
 
-max_y_ground : List Grid.Shape -> Float
+max_y_ground : List MapShape -> Float
 max_y_ground xs =
-  case List.map max_y_shape xs |> List.maximum of
+  case List.map max_y_shape (msToShapeList xs) |> List.maximum of
     Nothing -> 1
     Just y -> y
 
@@ -627,9 +669,9 @@ max_x_shape s =
         Just x -> x
     Grid.Composite outside holes -> max_x_shape (Grid.Polygon outside)
 
-max_x_ground : List Grid.Shape -> Float
+max_x_ground : List MapShape -> Float
 max_x_ground xs =
-  case List.map max_x_shape xs |> List.maximum of
+  case List.map max_x_shape (msToShapeList xs) |> List.maximum of
     Nothing -> 1
     Just x -> x
 
@@ -639,9 +681,9 @@ max_y_path (Grid.Path p) =
     Nothing -> 1
     Just y -> y
 
-max_y_walls : List Grid.Path -> Float
+max_y_walls : List MapPath -> Float
 max_y_walls xs =
-  case List.map max_y_path xs |> List.maximum of
+  case List.map max_y_path (mpToPathList xs) |> List.maximum of
     Nothing -> 1
     Just y -> y
 
@@ -651,9 +693,9 @@ max_x_path (Grid.Path p) =
     Nothing -> 1
     Just x -> x
 
-max_x_walls : List Grid.Path -> Float
+max_x_walls : List MapPath -> Float
 max_x_walls xs =
-  case List.map max_x_path xs |> List.maximum of
+  case List.map max_x_path (mpToPathList xs) |> List.maximum of
     Nothing -> 1
     Just x -> x
 
