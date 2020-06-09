@@ -400,7 +400,7 @@ view : Model -> Html Msg
 view model =
   let
     msg = "D\u{0026}D Map Designer Studio Suite Lite"
-    map = [draw_mouse, draw_paths, draw_ground, draw_grid, draw_bg]
+    map = [draw_mouse, draw_grid, draw_paths, draw_ground, draw_bg]
             |> List.map (\f -> f model)
             |> C.group
             |> R.svg
@@ -461,7 +461,7 @@ view model =
                                       Nothing -> SwitchTool Tool.FreeformPen)
                    , Attr.align "center"
                    , Attr.style "margin-bottom" "15px" ]
-                   [ undo, redo, tools, clear ]
+                   [ undo, redo, tools, eraser, clear ]
         , Html.div [ Attr.align "center"
                    , Attr.id "map_canvas_container"
                    , Attr.style "display" (if model.editState then "block" else "block") ]
@@ -498,7 +498,7 @@ draw_grid model =
   let
     scale = scaleGridToCol_i
 
-    grid_style = C.traced (C.solid C.thin (C.uniform Color.gray))
+    grid_style = C.traced (C.solid C.thin (C.uniform (Color.rgba 0 0 0 0.1)))
 
     h_grid_lines = (List.range 0 model.mapHeight)
       |> List.map (\y -> C.segment (0, scale y) (scale model.mapWidth, scale y))
@@ -805,7 +805,7 @@ remove_ground shape shape_list =
     head::tail ->
       case Grid.difference head shape of
         Nothing -> Debug.log "rm ground 2"  head :: remove_ground shape shape_list
-        Just d  -> Debug.log "rm ground 3" d ++ (remove_ground shape shape_list )
+        Just d  -> Debug.log "rm ground 3" d ++ (remove_ground shape tail )
 
 remove_wall : Grid.Path -> List Grid.Path -> List Grid.Path
 remove_wall path path_list = path_list
@@ -868,7 +868,9 @@ max_x_walls xs =
     Nothing -> 1
     Just x -> x
 
--- Extra Helper Functions -------------------------------------------
+               
+
+-- Slider Functions ---------------------------------------------------
 
 new_h_slider : Float -> Float -> SingleSlider.SingleSlider Msg
 new_h_slider min val =
