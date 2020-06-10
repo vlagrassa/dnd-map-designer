@@ -22,6 +22,7 @@ import Color exposing (Color)
 
 import SingleSlider
 import ColorPicker
+import FormElements.Switch as Switch
 
 import Grid
 import Grid.Json
@@ -90,6 +91,7 @@ type Msg
   | Undo
   | Redo
   | ToggleErasing
+  | ToggleSwitch Bool
   | Download
   | WidthSliderChange Float
   | HeightSliderChange Float
@@ -376,6 +378,8 @@ update msg model = case msg of
         ( { model | colorPicker = m
                   , currentColor = color |> Maybe.withDefault model.currentColor }, Cmd.none )
 
+  ToggleSwitch isToggled ->
+    ( { model | erasing = isToggled }, Cmd.none )
 
   RequestMapNames ->
     (model, requestMapNames ())
@@ -443,6 +447,10 @@ view model =
     undo = Html.button [ onClick Undo, Attr.style "margin-right" "15px" ] [ Html.text "Undo" ]
     redo = Html.button [ onClick Redo, Attr.style "margin-right" "10px" ] [ Html.text "Redo" ]
     eraser = Html.button [ onClick ToggleErasing, Attr.style "margin-left" "15px" ] [Html.text (blah model.erasing) ]
+    eraser2 = Html.div [ Attr.style "min-width" "130px"] [ Html.fromUnstyled (Switch.view { isOn = model.erasing
+                                       , label = "Eraser Mode: " ++ (if model.erasing then "On"
+                                                                    else "Off")
+                                       , handleToggle = ToggleSwitch }) ]
     colorpicker = Html.div [ Attr.style "margin" "15px" ] [ ColorPicker.view model.currentColor model.colorPicker
                                   |> Html.fromUnstyled |> Html.map ColorPickerMsg ]
     downloadButton =
@@ -466,7 +474,7 @@ view model =
                                   Nothing -> SwitchTool Tool.FreeformPen)
                , Attr.style "display" "inline-block"
                , Attr.style "vertical-align" "top" ]
-               [ tools, eraser, colorpicker, undo, redo, clear ]
+               [ tools, eraser2, colorpicker, undo, redo, clear ]
   in
     --sidebar
     Html.div [ Attr.style "display" "flex" ]
@@ -497,7 +505,8 @@ view model =
                   [ Html.text msg, Html.sup [ ] [ Html.text "\u{2122}"] ]
         , Html.div [ Attr.align "center"
                    , Attr.style "margin-bottom" "10px" ]
-                   (List.map Html.fromUnstyled [ SingleSlider.view model.widthSlider, SingleSlider.view model.heightSlider ])
+                   (List.map Html.fromUnstyled [ SingleSlider.view model.widthSlider
+                                               , SingleSlider.view model.heightSlider ])
         , Html.div [ Attr.id "map_canvas_container"
                    , Attr.style "display" "block"
                    , Attr.align "center" ]
