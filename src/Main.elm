@@ -439,11 +439,11 @@ view model =
             |> R.svg
             |> Svg.Styled.fromUnstyled
     clear = Html.button [ onClick ClearBoard, Attr.style "margin-left" "8px" ] [ Html.text "Clear" ]
-    tools = Html.select [ Attr.style "margin" "2px" ] Tool.toolOptions
-    undo = Html.button [ onClick Undo, Attr.style "margin-right" "5px" ] [ Html.text "Undo" ]
-    redo = Html.button [ onClick Redo, Attr.style "margin-right" "8px" ] [ Html.text "Redo" ]
-    eraser = Html.button [ onClick ToggleErasing, Attr.style "margin-left" "5px" ] [Html.text (blah model.erasing) ]
-    colorpicker = Html.div [ Attr.style "margin" "10px" ] [ ColorPicker.view model.currentColor model.colorPicker
+    tools = Html.select [ Attr.style "margin-bottom" "5px" ] Tool.toolOptions
+    undo = Html.button [ onClick Undo, Attr.style "margin-right" "15px" ] [ Html.text "Undo" ]
+    redo = Html.button [ onClick Redo, Attr.style "margin-right" "10px" ] [ Html.text "Redo" ]
+    eraser = Html.button [ onClick ToggleErasing, Attr.style "margin-left" "15px" ] [Html.text (blah model.erasing) ]
+    colorpicker = Html.div [ Attr.style "margin" "15px" ] [ ColorPicker.view model.currentColor model.colorPicker
                                   |> Html.fromUnstyled |> Html.map ColorPickerMsg ]
     downloadButton =
       (if model.editState
@@ -460,6 +460,13 @@ view model =
         , Html.button ((onClick <| UploadMap (encode_model model)) :: button_attributes) [Html.text "Upload"]
         , downloadButton
         ]
+    menu_items =
+      Html.div [ onInput (\s -> case Tool.toTool s of
+                                  Just t -> SwitchTool t
+                                  Nothing -> SwitchTool Tool.FreeformPen)
+               , Attr.style "display" "inline-block"
+               , Attr.style "vertical-align" "top" ]
+               [ tools, eraser, colorpicker, undo, redo, clear ]
   in
     --sidebar
     Html.div [ Attr.style "display" "flex" ]
@@ -486,23 +493,17 @@ view model =
         [ Html.h3 [ Attr.align "center"
                   , Attr.style "margin" "15px"
                   , Attr.style "font" "25px Optima, sans-serif"
-                  , Attr.style "color" "#F7F9F9" ]
+                  , Attr.style "color" "#FBFBFB" ]
                   [ Html.text msg, Html.sup [ ] [ Html.text "\u{2122}"] ]
         , Html.div [ Attr.align "center"
                    , Attr.style "margin-bottom" "10px" ]
                    (List.map Html.fromUnstyled [ SingleSlider.view model.widthSlider, SingleSlider.view model.heightSlider ])
-        , Html.div [ onInput (\s -> case Tool.toTool s of
-                                      Just t -> SwitchTool t
-                                      Nothing -> SwitchTool Tool.FreeformPen)
-                   , Attr.align "center"
-                   , Attr.style "margin-bottom" "15px" ]
-                   [ colorpicker, undo, redo, tools, eraser, clear ]
-        , Html.div [ Attr.align "center"
-                   , Attr.id "map_canvas_container"
-                   , Attr.style "display" (if model.editState then "block" else "block") ]
-                   [ map ]
+        , Html.div [ Attr.id "map_canvas_container"
+                   , Attr.style "display" "block"
+                   , Attr.align "center" ]
+                   [ Html.div [ Attr.style "display" "inline-block" ] [map], menu_items ]
         , Html.canvas
-            ( [Attr.style "display" (if model.editState then "none" else "none")]
+            ( [Attr.style "display" "none" ]
                 ++ (canvas_attributes model) ) [ ]
         ]
       ]
