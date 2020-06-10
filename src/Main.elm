@@ -13,6 +13,7 @@ import Svg.Styled
 
 import String exposing (fromInt, fromFloat, repeat)
 import Debug
+import Maybe.Extra as MaybeE
 
 import Collage as C
 import Collage.Layout as L
@@ -968,15 +969,37 @@ decode_field_default field decoder default =
     |> Decode.map (Maybe.withDefault default)
 
 encode_color : Color -> Encode.Value
-encode_color c = Encode.null
+encode_color c =
+  let
+    {red, green, blue, alpha} = Color.toRgba c
+  in
+    Encode.object
+      [ ("red",   Encode.float red)
+      , ("green", Encode.float green)
+      , ("blue",  Encode.float blue)
+      , ("alpha", Encode.float alpha)
+      ]
 
 color_decoder : Decode.Decoder Color
 color_decoder =
   Decode.map4 Color.rgba
-    (decode_field_default "red"   Decode.float   0)
-    (decode_field_default "green" Decode.float   0)
-    (decode_field_default "blue"  Decode.float   0)
+    (decode_field_default "red"   Decode.float 0)
+    (decode_field_default "green" Decode.float 0)
+    (decode_field_default "blue"  Decode.float 0)
     (decode_field_default "alpha" Decode.float 1)
+
+
+map_shape_decoder : Decode.Decoder MapShape
+map_shape_decoder =
+  Decode.map2 MapShape
+    (Decode.field "shape" Grid.Json.shapeDecoder)
+    (decode_field_default "color" color_decoder (Color.black))
+
+map_path_decoder : Decode.Decoder MapPath
+map_path_decoder =
+  Decode.map2 MapPath
+    (Decode.field "path"  Grid.Json.pathDecoder)
+    (decode_field_default "color" color_decoder (Color.black))
 
 
 -- Convert the current map into an object that can be saved to the database
@@ -1010,47 +1033,15 @@ encode_model model =
 map_decoder : Decode.Decoder Map
 map_decoder =
   let
-    --decode_or_empty field decoder default =
-    --  Decode.maybe (Decode.field field decoder)
-    --    |> Decode.map (Maybe.withDefault default)
+    ground_decoder = Decode.map MaybeE.values <| Decode.list (Decode.maybe map_shape_decoder)
+    walls_decoder  = Decode.map MaybeE.values <| Decode.list (Decode.maybe map_path_decoder)
 
-    decode_ground_uncolored : Decode.Decoder MapShape
-    decode_ground_uncolored =
-      Decode.map (\s -> {shape = s, color = Color.black}) <|
-        Decode.field "ground" Grid.Json.shapeDecoder
-      --decode_field_default "ground" (Decode.list Grid.Json.shapeDecoder) []
+    name_field_decoder   = decode_field_default "name"   Decode.string  ""
+    ground_field_decoder = decode_field_default "ground" ground_decoder []
+    walls_field_decoder  = decode_field_default "walls"  walls_decoder  []
 
-    decode_walls_uncolored =
-      Decode.map (\p -> {path = p, color = Color.black}) <|
-        Decode.field "walls" Grid.Json.pathDecoder
-      --decode_field_default "walls"  (Decode.list Grid.Json.pathDecoder ) []
-
-    decode_ground_colored : Decode.Decoder MapShape
-    decode_ground_colored =
-      Decode.map2 MapShape
-        (Decode.field "shape" Grid.Json.shapeDecoder)
-        (decode_field_default "color" color_decoder (Color.black))
-
-    decode_walls_colored =
-      Decode.map2 MapPath
-        (Decode.field "path"  Grid.Json.pathDecoder)
-        (decode_field_default "color" color_decoder (Color.black))
-
-    decode_ground = Decode.list <| Decode.oneOf
-      [ decode_ground_colored
-      , decode_ground_uncolored
-      ]
-
-    decode_walls = Decode.list <| Decode.oneOf
-      [ decode_walls_colored
-      , decode_walls_uncolored
-      ]
-
-    decode_name   = decode_field_default "name" Decode.string ""
-    --decode_ground = decode_field_default "ground" (Decode.list Grid.Json.shapeDecoder) []
-    --decode_walls  = decode_field_default "walls"  (Decode.list Grid.Json.pathDecoder ) []
   in
-    Decode.map3 Map decode_name decode_ground decode_walls
+    Decode.map3 Map name_field_decoder ground_field_decoder walls_field_decoder
 
 
 decode_map : Encode.Value -> Maybe Map
