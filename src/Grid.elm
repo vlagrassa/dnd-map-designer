@@ -139,8 +139,10 @@ flatten shape =
   case shape of
     Polygon poly -> poly
 
+    -- Holes get covered an even number of times, and ground an odd number
+    -- As long as everything is pointing in the right direction, Collage or SVG
+    -- or whichever will take care of everything for us
     Composite outline holes ->
-
       let
         corrected_holes =
           List.map (set_direction << opposite_dir << direction <| outline) holes
@@ -149,72 +151,11 @@ flatten shape =
         make_loop list = case list of
           [] -> []
           (x::xs) -> list ++ [x]
-
-        clear_shot pt sh =
-          case sh of
-            [] -> False
-            v::vs ->
-              let
-                tentative_line = (pt, v)
-
-                check_clear hole =
-                  let
-                    cross_pts =
-                      line_intersect_polygon tentative_line hole
-                        |> List.filter (\x -> x /= v && x /= pt)
-                  in
-                    case cross_pts of
-                      [] -> True
-                      _  -> False
-
-                intersections = List.map check_clear corrected_holes
-              in
-                List.foldl (&&) True intersections
-
-        -- Search for a shape to jump to in the list of remaining holes
-        recurse_outline remaining_points remaining_holes =
-          case remaining_points of
-            [] -> []
-            pt::pts ->
-              case extractMatch (clear_shot pt) remaining_holes of
-
-                -- If no open paths to any holes, move on to the next point
-                Nothing ->
-                  pt :: recurse_outline pts remaining_holes
-
-                -- If an open path, jump to that hole and return to this point
-                Just (next_hole, other_holes) ->
-                  let
-                    (new_segment, new_remaining_holes) = (recurse_hole next_hole other_holes)
-                  in
-                    pt :: new_segment ++ (recurse_outline remaining_points new_remaining_holes)
-
-        -- Search for a new shape to jump to in the list of remaining holes
-        -- Once you find it, pull it out and recurse on it instead
-        recurse_hole remaining_points remaining_holes =
-          case remaining_points of
-            [] -> ([], remaining_holes)
-            pt::pts ->
-
-              -- Try and find an open path to another hole
-              case extractMatch (clear_shot pt) remaining_holes of
-
-                -- If no open paths to any other holes, move on to the next point
-                Nothing ->
-                  Tuple.mapFirst ((::) pt) <| recurse_hole pts remaining_holes
-
-                -- If an open path, jump to that hole, then finish this one
-                Just (next_hole, other_holes) ->
-                  let
-                    recursive_call = recurse_hole next_hole other_holes
-                  in
-                    Tuple.mapFirst (\xs -> pt :: xs ++ (pt::pts)) recursive_call
-
       in
         case outline of
           [] -> []
-          start::tail ->
-              recurse_outline outline corrected_holes
+          v::vs ->
+            outline ++ (List.concatMap ((::) v) corrected_holes) ++ [v]
 
 
 
