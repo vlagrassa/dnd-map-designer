@@ -33,6 +33,7 @@ import Stack
 import Json.Encode as Encode
 import Json.Decode as Decode
 
+
 -- Main Stuff --------------------------------------------------------
 
 main : Program Flags Model Msg
@@ -113,6 +114,7 @@ newMP p c =
   { path = p, color = c }
 
 
+
 -- Ports -------------------------------------------------------------
 
 port receiveMouseMove : ((Maybe Coordinate) -> msg) -> Sub msg
@@ -133,7 +135,6 @@ port requestGallery : () -> Cmd msg
 port receiveGallery : (Encode.Value -> msg) -> Sub msg
 
 port sendDownload : Bool -> Cmd msg
-
 
 
 
@@ -204,10 +205,12 @@ update msg model = case msg of
                         then case (Grid.lineOrigin cur.path, ml) of
                           (Just o, Just loc) ->
                             newMP (Grid.makeLinePts o (toGrid loc))
-                                  (if model.erasing then Color.lightGray else model.currentColor)
+                                  (if model.erasing then Color.lightGray
+                                   else model.currentColor)
                           (Nothing, Just loc) ->
                             newMP (Grid.makeLinePts (toGrid loc) (toGrid loc))
-                                  (if model.erasing then Color.lightGray else model.currentColor)
+                                  (if model.erasing then Color.lightGray
+                                   else model.currentColor)
                           _ -> cur
                         else cur
                       Tool.Rectangle -> cur
@@ -215,10 +218,12 @@ update msg model = case msg of
                            then case ml of
                              Just loc ->
                                newMP (Grid.addPointIfBeyond 0.1 (toGrid loc) cur.path)
-                                     (if model.erasing then (case model.tool of
-                                                              Tool.LockedAutofill -> model.currentColor
-                                                              Tool.FreeformAutofill -> model.currentColor
-                                                              _ -> Color.lightGray) else model.currentColor)
+                                     (if model.erasing
+                                      then (case model.tool of
+                                             Tool.LockedAutofill -> model.currentColor
+                                             Tool.FreeformAutofill -> model.currentColor
+                                             _ -> Color.lightGray)
+                                      else model.currentColor)
                              Nothing -> cur
                            else cur
                 , currentRect =
@@ -253,11 +258,13 @@ update msg model = case msg of
                     case model.erasing of
                       False ->
                         add_ground
-                          (newMS (Grid.pathToShape model.currentDrawing.path) model.currentDrawing.color)
+                          (newMS (Grid.pathToShape model.currentDrawing.path)
+                                  model.currentDrawing.color)
                           model.ground
                       True ->
                         remove_ground
-                          (newMS (Grid.pathToShape model.currentDrawing.path) model.currentDrawing.color)
+                          (newMS (Grid.pathToShape model.currentDrawing.path)
+                                  model.currentDrawing.color)
                           model.ground
                  , currentDrawing = newMP (Grid.Path []) model.currentColor
                  , undoStack = Stack.push (model.ground, model.walls) model.undoStack }
@@ -319,8 +326,10 @@ update msg model = case msg of
                           , walls = []
                           , undoStack = Stack.empty 5
                           , redoStack = Stack.empty 5
-                          , heightSlider = new_h_slider 1 (SingleSlider.fetchValue model.heightSlider)
-                          , widthSlider = new_w_slider 1 (SingleSlider.fetchValue model.widthSlider) }, Cmd.none )
+                          , heightSlider =
+                             new_h_slider 1 (SingleSlider.fetchValue model.heightSlider)
+                          , widthSlider =
+                             new_w_slider 1 (SingleSlider.fetchValue model.widthSlider) }, Cmd.none )
 
   Undo ->
     case Stack.pop model.undoStack of
@@ -414,7 +423,6 @@ update msg model = case msg of
 
 
 
-
 -- View --------------------------------------------------------------
 
 canvas_attributes : Model -> List (Html.Attribute msg)
@@ -431,11 +439,6 @@ button_attributes = [ Attr.style "margin" "0 auto"
                     , Attr.style "display" "block"
                     , Attr.style "margin-top" "15px" ]
 
-blah : Bool -> String
-blah b =
-  case b of
-    True -> "True"
-    False -> "False"
 
 view : Model -> Html Msg
 view model =
@@ -532,6 +535,7 @@ view model =
     ]
 
 
+
 -- Drawing Map Objects -----------------------------------------------
 
 draw_bg : Model -> C.Collage Msg
@@ -544,6 +548,7 @@ draw_bg model =
   C.rectangle width height
     |> C.filled (C.uniform Color.lightGrey)
     |> C.shift (((width / 2) - (scaleGridToCol 1)), ((height / 2) - (scaleGridToCol 1)))
+
 
 draw_grid : Model -> C.Collage Msg
 draw_grid model =
@@ -563,6 +568,7 @@ draw_grid model =
     h_grid_lines ++ v_grid_lines
       |> C.group
 
+
 draw_ground : Model -> C.Collage Msg
 draw_ground model =
   let
@@ -572,6 +578,7 @@ draw_ground model =
     shape_to_collage gridToCol fill_style model.currentRect
       :: List.map (shape_to_collage gridToCol fill_style) model.ground 
            |> C.group
+
 
 draw_paths : Model -> C.Collage Msg
 draw_paths model =
@@ -588,6 +595,7 @@ draw_paths model =
         :: (List.map (path_to_collage gridToCol) model.walls) 
             |> C.group
 
+
 draw_mouse : Model -> C.Collage Msg
 draw_mouse model =
   case model.mouseLocation of
@@ -596,7 +604,6 @@ draw_mouse model =
       C.circle 10
         |> C.filled (C.uniform (Color.rgba 255 0 0 0.6))
         |> C.shift (jsToCol model loc)
-
 
 
 make_thumbnail : Float -> Map -> Html Msg
@@ -663,7 +670,6 @@ make_thumbnail thumbnail_size map =
       ]
 
 
-
 map_gallery : List Map -> Html Msg
 map_gallery maps =
   let
@@ -693,7 +699,6 @@ map_gallery maps =
           ]
           (List.map make_flexbox thumbnails)
         ]
-
 
 
 
@@ -761,6 +766,7 @@ jsToGridLocked model coord =
   Grid.roundPoint <| colToGrid <| jsToCol model coord
 
 
+
 -- Converting Shapes to Collage Elements -----------------------------
 
 shape_to_collage : (Grid.Point -> C.Point) -> C.FillStyle -> MapShape -> C.Collage Msg
@@ -800,13 +806,12 @@ path_to_collage grid_to_collage mp =
 
 
 
-
 -- Adding and Removing Shapes ----------------------------------------
-
 
 add_ground_model : MapShape -> Model -> Model
 add_ground_model shape model =
   {model | ground = add_ground shape model.ground}
+
 
 add_ground : MapShape -> List MapShape -> List MapShape
 add_ground new_shape shape_list =
@@ -817,6 +822,7 @@ add_ground new_shape shape_list =
         Nothing -> head :: add_ground new_shape tail
         Just u  -> add_ground (newMS u head.color) tail
 
+
 add_wall : MapPath -> List MapPath -> List MapPath
 add_wall path path_list =
   path :: path_list
@@ -825,6 +831,7 @@ add_wall path path_list =
 remove_ground_model : MapShape -> Model -> Model
 remove_ground_model shape model =
   {model | ground = remove_ground shape model.ground}
+
 
 remove_ground : MapShape -> List MapShape -> List MapShape
 remove_ground shape shape_list =
@@ -835,10 +842,10 @@ remove_ground shape shape_list =
         Nothing -> head :: remove_ground shape tail
         Just d  -> (List.map (\x -> newMS x head.color) d) ++ (remove_ground shape tail)
 
+
 remove_wall : MapPath -> List MapPath -> List MapPath
 remove_wall path path_list =
   (newMP path.path Color.lightGray) :: path_list
-
 
 
 
@@ -908,7 +915,6 @@ max_x_walls xs =
 
                
 
-
 -- Slider Functions ---------------------------------------------------
 
 new_h_slider : Float -> Float -> SingleSlider.SingleSlider Msg
@@ -929,9 +935,7 @@ new_w_slider min val =
  
 
 
-
 -- Interacting with the Database -------------------------------------
-
 
 decode_field_default : String -> Decode.Decoder a -> a -> Decode.Decoder a
 decode_field_default field decoder default =
@@ -1019,7 +1023,9 @@ decode_map =
   Result.toMaybe << Decode.decodeValue map_decoder
 
 
+
 -- Does this have to explicitly handle Maybe values in the maps?
+
 gallery_decoder : Decode.Decoder (List Map)
 gallery_decoder =
     Decode.list map_decoder
