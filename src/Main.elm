@@ -215,7 +215,10 @@ update msg model = case msg of
                            then case ml of
                              Just loc ->
                                newMP (Grid.addPointIfBeyond 0.1 (toGrid loc) cur.path)
-                                     (if model.erasing then Color.lightGray else model.currentColor)
+                                     (if model.erasing then (case model.tool of
+                                                              Tool.LockedAutofill -> model.currentColor
+                                                              Tool.FreeformAutofill -> model.currentColor
+                                                              _ -> Color.lightGray) else model.currentColor)
                              Nothing -> cur
                            else cur
                 , currentRect =
@@ -444,7 +447,8 @@ view model =
             |> R.svg
             |> Svg.Styled.fromUnstyled
     clear = Html.button [ onClick ClearBoard, Attr.style "margin-left" "8px" ] [ Html.text "Clear" ]
-    tools = Html.select [ Attr.style "margin-bottom" "5px" ] Tool.toolOptions
+    tools = Html.select [ Attr.style "margin-bottom" "10px"
+                        , Attr.style "margin-top" "5px" ] Tool.toolOptions
     undo = Html.button [ onClick Undo, Attr.style "margin-right" "15px" ] [ Html.text "Undo" ]
     redo = Html.button [ onClick Redo, Attr.style "margin-right" "10px" ] [ Html.text "Redo" ]
     eraser = Html.button [ onClick ToggleErasing, Attr.style "margin-left" "15px" ] [Html.text (blah model.erasing) ]
@@ -452,7 +456,9 @@ view model =
                                        , label = "Eraser Mode: " ++ (if model.erasing then "On"
                                                                     else "Off")
                                        , handleToggle = ToggleSwitch }) ]
-    colorpicker = Html.div [ Attr.style "margin" "15px" ] [ ColorPicker.view model.currentColor model.colorPicker
+    colorpicker = Html.div [ Attr.style "margin" "15px"
+                           , Attr.style "margin-left" "20px" ]
+                           [ ColorPicker.view model.currentColor model.colorPicker
                                   |> Html.fromUnstyled |> Html.map ColorPickerMsg ]
     downloadButton =
       (if model.editState
