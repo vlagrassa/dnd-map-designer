@@ -268,7 +268,7 @@ direction poly =
     line_val (p,q) = reduce (*) <| mapBoth2 (+) (-) q p
     total_val = List.sum <| List.map line_val lines
   in
-    if total_val < 0 then Widdershins else Clockwise
+    if total_val < 0 then Clockwise else Widdershins
 
 reverse : Polygon -> Polygon
 reverse = List.reverse
@@ -351,19 +351,8 @@ intersection a b =
     format_as_tuples : List Polygon -> List PolygonTuple
     format_as_tuples = List.map (\o -> (o, []))
 
-    remove_hole : Polygon -> List PolygonTuple -> List PolygonTuple
-    remove_hole hole =
-      let
-        convert_to_same = Either.unpack format_as_tuples List.singleton
 
-        map_func (x, hs) = difference_polygons x hole
-          |> Maybe.map convert_to_same
-          |> Maybe.withDefault [(x, hs)]
-      in
-        List.concatMap map_func
 
-    remove_all_holes : List Polygon -> List PolygonTuple -> List PolygonTuple
-    remove_all_holes holes outline = List.foldl (\h -> remove_hole h) outline holes
 
     make_shapes : List Polygon -> List Polygon -> List Shape
     make_shapes holes =
@@ -404,15 +393,6 @@ difference a b =
     format_as_tuples = List.map (\o -> (o, []))
     convert_to_same = Either.unpack format_as_tuples List.singleton
 
-    transform_acc c (cs, acc, byproducts) = case union_polygons c acc of
-      Nothing -> (c::cs, acc, byproducts)
-      Just (new_acc, new_byproducts) -> (cs, new_acc, new_byproducts ++ byproducts)
-
-    append_acc (cs, acc, byproducts) = (acc :: cs, byproducts)
-
-    union_list new_shape list =
-      List.foldl transform_acc ([], new_shape, []) list |> append_acc
-
     outline_map_func hole outline =
       case difference_polygons outline hole of
         Just (Left new_outline) -> new_outline
@@ -423,17 +403,7 @@ difference a b =
     make_outline : Polygon -> List Polygon -> List Polygon
     make_outline outline = List.foldl outline_fold_func [outline]
 
-    remove_hole : Polygon -> List PolygonTuple -> List PolygonTuple
-    remove_hole hole =
-      let
-        map_func (x, hs) = difference_polygons x hole
-          |> Maybe.map convert_to_same
-          |> Maybe.withDefault [(x, hs)]
-      in
-        List.concatMap map_func
 
-    remove_all_holes : List Polygon -> List PolygonTuple -> List PolygonTuple
-    remove_all_holes holes outline = List.foldl (\h -> remove_hole h) outline holes
 
   in
   case (a, b) of
@@ -446,9 +416,12 @@ difference a b =
 
         new_shapes = new_pieces |> List.concatMap (intersect_polygons_ a_outline)
 
-        new_outline = make_outline a_outline new_holes
+        new_main_shape = remove_all_holes new_holes [(a_outline, [])]
       in
-        Just (List.map Polygon <| new_shapes ++ new_outline)
+        Just <|
+          (List.map fromPolygonTuple new_main_shape)
+          ++
+          (List.map Polygon new_shapes)
 
     (Polygon a_poly, Composite b_outline b_holes) ->
       let
@@ -490,6 +463,120 @@ difference_ a b = Maybe.withDefault [a] (difference a b)
 
 
 -- Merging Shapes Helper Functions -----------------------------------
+
+
+remove_hole : Polygon -> List PolygonTuple -> List PolygonTuple
+remove_hole hole =
+  let
+    -- Take an outline and add only the holes that are contained entirely within it
+    add_contained_holes holes outline =
+      List.foldl (\h (o, hs) -> if is_outer o h then (o, Tuple.first <| union_list h hs) else (o, hs)) (outline, []) holes
+
+    -- Separate a list of tuples into the outlines and the holes
+    separate_holes : List PolygonTuple -> (List Polygon, List Polygon)
+    separate_holes =
+      List.foldl (\(o,h) (acc_o, acc_h) -> (o :: acc_o, h ++ acc_h)) ([],[])
+
+    handle_single_hole old_holes (new_outline, new_holes) =
+      union_lists new_holes old_holes |> separate_holes
+      |> \(holes, extras) -> (new_outline, holes) :: (List.map (\x -> (x,[])) extras)
+
+    -- Integrate the previous holes into the result of removing the current one from the outline
+    --handle_difference : List Polygon -> PolygonTuple -> List PolygonTuple
+    handle_difference old_holes =
+      Either.unpack
+        -- If removing the most recent hole split the outline, divide up the old holes
+        -- into the new outline they belong with
+        (List.map (add_contained_holes old_holes))
+
+        -- If removing the most recent hole just created a new hole, add it to the holes
+        -- that already exist
+        (handle_single_hole old_holes)
+        --(\(new_outline, new_holes) -> separate_holes (union_lists new_holes old_holes))
+          --let union_result = union_lists new_holes old_holes
+          --in [(new_outline, )])
+
+    --combine_holes new_holes old_holes =
+    --  List.
+
+    -- Remove the passed hole from a PolygonTuple
+    remove_hole_from_tuple : PolygonTuple -> List PolygonTuple
+    remove_hole_from_tuple (outline, old_holes) =
+      difference_polygons outline (Debug.log "Removing hole" hole)
+        |> Debug.log "Successful difference"
+        |> Maybe.map (handle_difference old_holes)
+        |> Maybe.withDefault [(outline, old_holes)]
+
+  in
+    List.concatMap remove_hole_from_tuple
+
+remove_all_holes : List Polygon -> List PolygonTuple -> List PolygonTuple
+remove_all_holes holes outline = List.foldl (\h -> remove_hole h) outline holes
+
+
+
+
+
+
+union_lists : List Polygon -> List Polygon -> List PolygonTuple
+union_lists list_a list_b =
+  let
+    fold_func new_poly acc =
+        union_list_t new_poly acc
+  in
+    List.foldl fold_func (List.map (\x -> (x,[])) list_a) list_b
+
+
+union_list_t_2 : Polygon -> List Polygon -> List PolygonTuple
+union_list_t_2 new_poly list =
+  let
+    transform_acc current (unaffected, acc_outline, acc_holes) =
+      case union_polygons current acc_outline of
+
+        -- If the current shape is unaffected, add it to the list and move on
+        Nothing ->
+          ((current, []) :: unaffected, acc_outline, acc_holes)
+
+        -- If the current shape is affected, update the outline and holes
+        Just (new_outline, new_holes) ->
+          (unaffected, new_outline, new_holes ++ acc_holes)
+
+    clean_up (unaffected, acc_outline, acc_holes) = (acc_outline, acc_holes) :: unaffected
+  in
+    List.foldl transform_acc ([], new_poly, []) list |> clean_up
+
+
+union_list_t : Polygon -> List PolygonTuple -> List PolygonTuple
+union_list_t new_poly list =
+  let
+    transform_acc (c_outline, c_holes) (unaffected, acc_outline, acc_holes) =
+      case union_polygons c_outline acc_outline of
+
+        -- If the current shape is unaffected, add it to the list and move on
+        Nothing ->
+          ((c_outline, c_holes) :: unaffected, acc_outline, acc_holes)
+
+        -- If the current shape is affected, update the outline and holes
+        Just (new_outline, new_holes) ->
+          (unaffected, new_outline, new_holes ++ acc_holes)
+
+    clean_up (unaffected, acc_outline, acc_holes) = (acc_outline, acc_holes) :: unaffected
+  in
+    List.foldl transform_acc ([], new_poly, []) list |> clean_up
+
+
+union_list : Polygon -> List Polygon -> (List Polygon, List Polygon)
+union_list shape list =
+  let
+    transform_acc c (cs, acc, byproducts) = case union_polygons c acc of
+      Nothing -> (c::cs, acc, byproducts)
+      Just (new_acc, new_byproducts) -> (cs, new_acc, new_byproducts ++ byproducts)
+
+    append_acc (cs, acc, byproducts) = (acc :: cs, byproducts)
+  in
+    List.foldl transform_acc ([], shape, []) list |> append_acc
+
+
 
 
 -- Create a new version of poly that explicitly includes all the points where it intersects
@@ -757,13 +844,18 @@ difference_polygons poly_a poly_b =
   let
     (dir_a, dir_b) = (direction poly_a, direction poly_b)
 
+    corrected_a = set_direction Widdershins poly_a
+    corrected_b = set_direction Clockwise   poly_b
+
     make_trace a b =
-      if (dir_a == dir_b) then
-        trace_polygons_maker Cycle.Forward  poly_b poly_a
+      trace_polygons_maker Cycle.Backward a b
         |> Maybe.map Either.Left
-      else
-        trace_polygons_maker Cycle.Backward poly_a poly_b
-        |> Maybe.map Either.Left
+      --if ((Debug.log "Direction a" dir_a) == (Debug.log "Direction b" dir_b)) then
+      --  trace_polygons_maker Cycle.Backward poly_a poly_b
+      --  |> Maybe.map Either.Left
+      --else
+      --  trace_polygons_maker Cycle.Backward poly_a poly_b
+      --  |> Maybe.map Either.Left
 
     make_composite a b =
       if is_outer a b then
@@ -776,7 +868,7 @@ difference_polygons poly_a poly_b =
 
   in
     MaybeE.orListLazy
-      [ \() -> make_trace poly_a poly_b
+      [ \() -> make_trace corrected_a corrected_b
       , \() -> make_composite poly_a poly_b
       ]
 
