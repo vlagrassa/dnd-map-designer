@@ -1,6 +1,7 @@
 module Tool exposing (..)
 
 import Html.Styled as Html exposing (Html)
+import Color
 
 type Tool
   = LockedPen
@@ -31,3 +32,5 @@ toolOptions = List.map (\s -> Html.option [] [Html.text s])
                        , "Locked Autofill Pen"
                        , "Rectangle"
                        , "Line" ]
+
+

@@ -13,6 +13,7 @@ import Svg.Styled
 
 import String exposing (fromInt, fromFloat, repeat)
 import Debug
+import Maybe.Extra as MaybeE
 
 import Collage as C
 import Collage.Layout as L
@@ -21,6 +22,8 @@ import Collage.Render as R
 import Color exposing (Color)
 
 import SingleSlider
+import ColorPicker
+import FormElements.Switch as Switch
 
 import Grid
 import Grid.Json
@@ -45,28 +48,30 @@ type alias Model =
   { mouseLocation : Maybe Coordinate
   , mapHeight : Int
   , mapWidth : Int
-  , ground : List Grid.Shape
-  , walls  : List Grid.Path
-  , currentDrawing : Grid.Path
-  , currentRect : Grid.Shape
+  , ground : List MapShape
+  , walls  : List MapPath
+  , currentDrawing : MapPath
+  , currentRect : MapShape
   , editState : Bool
   , mouseDown : Bool
   , tool : Tool.Tool
   , galleryMaps : List Map
-  , undoStack : Stack.Stack (List Grid.Shape, List Grid.Path)
-  , redoStack : Stack.Stack (List Grid.Shape, List Grid.Path)
+  , mapName : String
+  , undoStack : Stack.Stack (List MapShape, List MapPath)
+  , redoStack : Stack.Stack (List MapShape, List MapPath)
   , erasing : Bool
   , widthSlider : SingleSlider.SingleSlider Msg
   , heightSlider : SingleSlider.SingleSlider Msg
-  , mapName : String
+  , currentColor : Color
+  , colorPicker : ColorPicker.State
   }
 
 type alias Coordinate = { x:Int, y:Int }
 
 type alias Map =
   { name   : String
-  , ground : List Grid.Shape
-  , walls  : List Grid.Path
+  , ground : List MapShape
+  , walls  : List MapPath
   }
 
 type Msg
@@ -87,14 +92,25 @@ type Msg
   | Undo
   | Redo
   | ToggleErasing
+  | ToggleSwitch Bool
   | Download
   | WidthSliderChange Float
   | HeightSliderChange Float
+  | ColorPickerMsg ColorPicker.Msg
   | MapName String
 
 type alias Flags = ()
 
+type alias MapShape = { shape : Grid.Shape, color : Color }
+type alias MapPath = { path : Grid.Path, color : Color }
 
+newMS : Grid.Shape -> Color -> MapShape
+newMS s c =
+  { shape = s, color = c }
+
+newMP : Grid.Path -> Color -> MapPath
+newMP p c =
+  { path = p, color = c }
 
 
 -- Ports -------------------------------------------------------------
@@ -131,20 +147,22 @@ initModel =
   { mouseLocation = Nothing
   , mapHeight = 20
   , mapWidth = 25
-  , ground = [ ]
-  , walls = [ ]
-  , currentDrawing = Grid.Path [ ]
-  , currentRect = Grid.Polygon []
+  , ground = []
+  , walls = []
+  , currentDrawing = newMP (Grid.Path []) Color.black
+  , currentRect = newMS (Grid.Polygon []) Color.black
   , editState = True
   , mouseDown = False
   , tool = Tool.FreeformPen
   , galleryMaps = []
+  , mapName = ""
   , undoStack = Stack.empty 5
   , redoStack = Stack.empty 5
   , erasing = False
   , widthSlider = new_w_slider 1 20
   , heightSlider = new_h_slider 1 15
-  , mapName = ""
+  , currentColor = Color.black
+  , colorPicker = ColorPicker.empty
   }
 
 
@@ -183,24 +201,35 @@ update msg model = case msg of
                     case model.tool of
                       Tool.Line ->
                         if model.mouseDown
-                        then case (Grid.lineOrigin cur, ml) of
-                          (Just o, Just loc) -> Grid.makeLinePts o (toGrid loc)
-                          (Nothing, Just loc) -> Grid.makeLinePts (toGrid loc) (toGrid loc)
+                        then case (Grid.lineOrigin cur.path, ml) of
+                          (Just o, Just loc) ->
+                            newMP (Grid.makeLinePts o (toGrid loc))
+                                  (if model.erasing then Color.lightGray else model.currentColor)
+                          (Nothing, Just loc) ->
+                            newMP (Grid.makeLinePts (toGrid loc) (toGrid loc))
+                                  (if model.erasing then Color.lightGray else model.currentColor)
                           _ -> cur
                         else cur
                       Tool.Rectangle -> cur
                       _ -> if model.mouseDown
                            then case ml of
-                             Just loc -> Grid.addPointIfBeyond 0.1 (toGrid loc) cur
+                             Just loc ->
+                               newMP (Grid.addPointIfBeyond 0.1 (toGrid loc) cur.path)
+                                     (if model.erasing then (case model.tool of
+                                                              Tool.LockedAutofill -> model.currentColor
+                                                              Tool.FreeformAutofill -> model.currentColor
+                                                              _ -> Color.lightGray) else model.currentColor)
                              Nothing -> cur
                            else cur
                 , currentRect =
                     case model.tool of
                       Tool.Rectangle ->
                         if model.mouseDown
-                        then case (Grid.rectOrigin cur_r, ml) of
-                          (Just o, Just loc) -> Grid.rach_makeRectPts o (toGrid loc)
-                          (Nothing, Just loc) -> Grid.makeRectDims (toGrid loc) 0 0
+                        then case (Grid.rectOrigin cur_r.shape, ml) of
+                          (Just o, Just loc) ->
+                            newMS (Grid.rach_makeRectPts o (toGrid loc)) model.currentColor
+                          (Nothing, Just loc) ->
+                            newMS (Grid.makeRectDims (toGrid loc) 0 0) model.currentColor
                           _ -> cur_r
                         else cur_r
                       _ -> cur_r }, Cmd.none )
@@ -223,19 +252,22 @@ update msg model = case msg of
                  , ground =
                     case model.erasing of
                       False ->
-                        add_ground (Grid.pathToShape model.currentDrawing) model.ground
+                        add_ground
+                          (newMS (Grid.pathToShape model.currentDrawing.path) model.currentDrawing.color)
+                          model.ground
                       True ->
-                        remove_ground (Grid.pathToShape model.currentDrawing) model.ground
-                 , currentDrawing = Grid.Path []
-                 , undoStack = Stack.push (model.ground, model.walls) model.undoStack
-                  }
+                        remove_ground
+                          (newMS (Grid.pathToShape model.currentDrawing.path) model.currentDrawing.color)
+                          model.ground
+                 , currentDrawing = newMP (Grid.Path []) model.currentColor
+                 , undoStack = Stack.push (model.ground, model.walls) model.undoStack }
       non_autofill =
         { model | mouseDown = b
                 , walls = 
                     case model.erasing of
                       False -> add_wall model.currentDrawing model.walls
                       True -> remove_wall model.currentDrawing model.walls
-                , currentDrawing = Grid.Path []
+                , currentDrawing = newMP (Grid.Path []) model.currentColor
                 , undoStack = Stack.push (model.ground, model.walls) model.undoStack }
       rect =
         { model | mouseDown = b
@@ -243,7 +275,7 @@ update msg model = case msg of
                     case model.erasing of
                       False -> add_ground model.currentRect model.ground
                       True -> remove_ground model.currentRect model.ground
-                , currentRect = Grid.Polygon []
+                , currentRect = newMS (Grid.Polygon []) model.currentColor
                 , undoStack = Stack.push (model.ground, model.walls) model.undoStack }
     in
        case (model.tool,b) of
@@ -343,6 +375,15 @@ update msg model = case msg of
                   , heightSlider = newSlider
                   , mapHeight = round (SingleSlider.fetchValue model.heightSlider) }, Cmd.none )
 
+  ColorPickerMsg message ->
+    let
+        ( m, color ) = ColorPicker.update message model.currentColor model.colorPicker
+    in
+        ( { model | colorPicker = m
+                  , currentColor = color |> Maybe.withDefault model.currentColor }, Cmd.none )
+
+  ToggleSwitch isToggled ->
+    ( { model | erasing = isToggled }, Cmd.none )
 
   RequestMapNames ->
     (model, requestMapNames ())
@@ -400,16 +441,25 @@ view : Model -> Html Msg
 view model =
   let
     msg = "D\u{0026}D Map Designer Studio Suite Lite"
-    map = [draw_mouse, draw_paths, draw_ground, draw_grid, draw_bg]
+    map = [draw_mouse, draw_grid, draw_ground, draw_paths, draw_bg]
             |> List.map (\f -> f model)
             |> C.group
             |> R.svg
             |> Svg.Styled.fromUnstyled
     clear = Html.button [ onClick ClearBoard, Attr.style "margin-left" "8px" ] [ Html.text "Clear" ]
-    tools = Html.select [ Attr.style "margin" "2px" ] Tool.toolOptions
-    undo = Html.button [ onClick Undo, Attr.style "margin-right" "5px" ] [ Html.text "Undo" ]
-    redo = Html.button [ onClick Redo, Attr.style "margin-right" "8px" ] [ Html.text "Redo" ]
-    eraser = Html.button [ onClick ToggleErasing, Attr.style "margin-left" "5px" ] [Html.text (blah model.erasing) ]
+    tools = Html.select [ Attr.style "margin-bottom" "10px"
+                        , Attr.style "margin-top" "5px" ] Tool.toolOptions
+    undo = Html.button [ onClick Undo, Attr.style "margin-right" "15px" ] [ Html.text "Undo" ]
+    redo = Html.button [ onClick Redo, Attr.style "margin-right" "10px" ] [ Html.text "Redo" ]
+    eraser = Html.div [ Attr.style "min-width" "130px"]
+                      [ Html.fromUnstyled
+                          (Switch.view { isOn = model.erasing
+                                       , label = "Eraser Mode: " ++ (if model.erasing then "On" else "Off")
+                                       , handleToggle = ToggleSwitch }) ]
+    colorpicker = Html.div [ Attr.style "margin" "15px"
+                           , Attr.style "margin-left" "20px" ]
+                           [ ColorPicker.view model.currentColor model.colorPicker
+                                  |> Html.fromUnstyled |> Html.map ColorPickerMsg ]
     downloadButton =
       (if model.editState
         then Html.button ( (onClick SwitchState) :: button_attributes )
@@ -425,6 +475,13 @@ view model =
         , Html.button ((onClick <| UploadMap (encode_model model)) :: button_attributes) [Html.text "Upload"]
         , downloadButton
         ]
+    menu_items =
+      Html.div [ onInput (\s -> case Tool.toTool s of
+                                  Just t -> SwitchTool t
+                                  Nothing -> SwitchTool Tool.FreeformPen)
+               , Attr.style "display" "inline-block"
+               , Attr.style "vertical-align" "top" ]
+               [ tools, eraser, colorpicker, undo, redo, clear ]
   in
     --sidebar
     Html.div [ Attr.style "display" "flex" ]
@@ -432,7 +489,7 @@ view model =
       -- Styling to create the sidebar
       Html.aside
       [ Attr.css [ Css.width <| Css.pct 20 ]
-      , Attr.style "background" "#444444"
+      , Attr.style "background" "#333333"
       , Attr.align "center"
       ]
       -- Gallery of database maps in the sidebar
@@ -451,23 +508,18 @@ view model =
         [ Html.h3 [ Attr.align "center"
                   , Attr.style "margin" "15px"
                   , Attr.style "font" "25px Optima, sans-serif"
-                  , Attr.style "color" "#F7F9F9" ]
+                  , Attr.style "color" "#FBFBFB" ]
                   [ Html.text msg, Html.sup [ ] [ Html.text "\u{2122}"] ]
         , Html.div [ Attr.align "center"
                    , Attr.style "margin-bottom" "10px" ]
-                   (List.map Html.fromUnstyled [ SingleSlider.view model.widthSlider, SingleSlider.view model.heightSlider ])
-        , Html.div [ onInput (\s -> case Tool.toTool s of
-                                      Just t -> SwitchTool t
-                                      Nothing -> SwitchTool Tool.FreeformPen)
-                   , Attr.align "center"
-                   , Attr.style "margin-bottom" "15px" ]
-                   [ undo, redo, tools, clear ]
-        , Html.div [ Attr.align "center"
-                   , Attr.id "map_canvas_container"
-                   , Attr.style "display" (if model.editState then "block" else "block") ]
-                   [ map ]
+                   (List.map Html.fromUnstyled [ SingleSlider.view model.widthSlider
+                                               , SingleSlider.view model.heightSlider ])
+        , Html.div [ Attr.id "map_canvas_container"
+                   , Attr.style "display" "block"
+                   , Attr.align "center" ]
+                   [ Html.div [ Attr.style "display" "inline-block" ] [map], menu_items ]
         , Html.canvas
-            ( [Attr.style "display" (if model.editState then "none" else "none")]
+            ( [Attr.style "display" "none" ]
                 ++ (canvas_attributes model) ) [ ]
         ]
       ]
@@ -498,7 +550,7 @@ draw_grid model =
   let
     scale = scaleGridToCol_i
 
-    grid_style = C.traced (C.solid C.thin (C.uniform Color.gray))
+    grid_style = C.traced (C.solid C.thin (C.uniform (Color.rgba 0 0 0 0.1)))
 
     h_grid_lines = (List.range 0 model.mapHeight)
       |> List.map (\y -> C.segment (0, scale y) (scale model.mapWidth, scale y))
@@ -514,11 +566,11 @@ draw_grid model =
 draw_ground : Model -> C.Collage Msg
 draw_ground model =
   let
-    fill_style = C.uniform (Color.rgba 1 1 1 0.5)
+    fill_style = C.uniform (Color.rgba 1 1 1 0.8)
     line_style = C.solid C.thick (C.uniform Color.black)
   in
-    shape_to_collage gridToCol (fill_style, line_style) model.currentRect
-      :: List.map (shape_to_collage gridToCol (fill_style, line_style)) model.ground 
+    shape_to_collage gridToCol fill_style model.currentRect
+      :: List.map (shape_to_collage gridToCol fill_style) model.ground 
            |> C.group
 
 draw_paths : Model -> C.Collage Msg
@@ -532,8 +584,8 @@ draw_paths model =
       dotstyle = C.broken [ (5, 2), (15, 2) ] 5 (C.uniform Color.darkBrown)
       hedge = C.dot 5 (C.uniform Color.darkGreen)
   in
-      path_to_collage gridToCol line_style model.currentDrawing
-        :: (List.map (path_to_collage gridToCol line_style) model.walls)
+      path_to_collage gridToCol model.currentDrawing
+        :: (List.map (path_to_collage gridToCol) model.walls) 
             |> C.group
 
 draw_mouse : Model -> C.Collage Msg
@@ -546,40 +598,6 @@ draw_mouse model =
         |> C.shift (jsToCol model loc)
 
 
-draw_menu : Model -> C.Collage Msg
-draw_menu model =
-  let
-      width  = scaleGridToCol_i (model.mapWidth - 2)
-      
-      -- fill and line styles
-      outline = C.solid C.ultrathin (C.uniform Color.gray)
-      inline = C.solid C.thin (C.uniform Color.black)
-      grayfill = C.styled (C.uniform (Color.lightGray), inline)
-      blackfill = C.filled (C.uniform (Color.black))
-      bgfill = C.styled (C.uniform (Color.lightGray), outline)
-      
-      -- menu "buttons"; these are really ugly and need to be updated
-      -- but they were convenient to make and they'll do for now
-      lock_auto = C.square 14 |> grayfill |> C.shiftX 25
-                     |> E.onClick (SwitchTool Tool.LockedAutofill)
-      free_auto = C.roundedSquare 15 4 |> grayfill |> C.shiftX 50
-                     |> E.onClick (SwitchTool Tool.FreeformAutofill)
-      lock_pen  = C.square 14 |> blackfill |> C.shiftX 75
-                     |> E.onClick (SwitchTool Tool.LockedPen)
-      free_pen  = C.circle 7 |> blackfill |> C.shiftX 100
-                     |> E.onClick (SwitchTool Tool.FreeformPen)
-      rect_tool = C.rectangle 20 14 |> grayfill |> C.shiftX 130
-                     |> E.onClick (SwitchTool Tool.Rectangle)
-      
-      -- menu shape
-      menu_bg = C.rectangle width 50 |> bgfill
-  in
-      List.foldr (\x -> L.at L.left x) menu_bg
-                 [lock_auto,free_auto,lock_pen,free_pen,rect_tool]
-
-
-
-
 
 make_thumbnail : Float -> Map -> Html Msg
 make_thumbnail thumbnail_size map =
@@ -589,8 +607,8 @@ make_thumbnail thumbnail_size map =
 
     shift_size = thumbnail_size / 2
 
-    convert_ground = shape_to_collage (Grid.mapSame ((*) 8)) (fill_style, line_style)
-    convert_walls  = path_to_collage  (Grid.mapSame ((*) 8)) line_style
+    convert_ground = shape_to_collage (Grid.mapSame ((*) 8)) fill_style -- (fill_style, line_style)
+    convert_walls  = path_to_collage  (Grid.mapSame ((*) 8)) -- line_style
 
     display = List.map convert_walls map.walls ++ List.map convert_ground map.ground
       |> C.group |> C.shift (-shift_size, -shift_size)
@@ -745,9 +763,12 @@ jsToGridLocked model coord =
 
 -- Converting Shapes to Collage Elements -----------------------------
 
-shape_to_collage : (Grid.Point -> C.Point) -> (C.FillStyle, C.LineStyle) -> Grid.Shape -> C.Collage Msg
-shape_to_collage grid_to_collage (fill, line) shape =
+shape_to_collage : (Grid.Point -> C.Point) -> C.FillStyle -> MapShape -> C.Collage Msg
+shape_to_collage grid_to_collage fill ms =
   let
+    shape = ms.shape
+    col = ms.color
+    line = C.solid C.thick (C.uniform col)
     scale_and_convert = List.map grid_to_collage >> C.polygon
     style_both =    C.styled (fill, line)
     style_outline = C.styled (C.transparent, line)
@@ -766,9 +787,16 @@ shape_to_collage grid_to_collage (fill, line) shape =
         in
           C.group (outlines ++ [inside])
 
-path_to_collage : (Grid.Point -> C.Point) ->  C.LineStyle -> Grid.Path -> C.Collage Msg
-path_to_collage grid_to_collage line (Grid.Path p) =
-  (C.path (List.map grid_to_collage p)) |> C.traced line
+path_to_collage : (Grid.Point -> C.Point) -> MapPath -> C.Collage Msg
+path_to_collage grid_to_collage mp =
+  let
+      path = mp.path
+      col = mp.color
+      line = if col == Color.lightGray then C.solid 20 (C.uniform col)
+             else C.solid C.thick (C.uniform col)
+  in
+      case path of
+        Grid.Path p -> (C.path (List.map grid_to_collage p)) |> C.traced line
 
 
 
@@ -776,43 +804,53 @@ path_to_collage grid_to_collage line (Grid.Path p) =
 -- Adding and Removing Shapes ----------------------------------------
 
 
-add_ground_model : Grid.Shape -> Model -> Model
+add_ground_model : MapShape -> Model -> Model
 add_ground_model shape model =
   {model | ground = add_ground shape model.ground}
 
-add_ground : Grid.Shape -> List Grid.Shape -> List Grid.Shape
+add_ground : MapShape -> List MapShape -> List MapShape
 add_ground new_shape shape_list =
   case shape_list of
     [] -> [new_shape]
     head::tail ->
-      case Grid.union head new_shape of
+      case Grid.union head.shape new_shape.shape of
         Nothing -> head :: add_ground new_shape tail
-        Just u  -> add_ground u tail
+        Just u  -> add_ground (newMS u head.color) tail
 
-add_wall : Grid.Path -> List Grid.Path -> List Grid.Path
+add_wall : MapPath -> List MapPath -> List MapPath
 add_wall path path_list =
   path :: path_list
 
 
-remove_ground_model : Grid.Shape -> Model -> Model
+remove_ground_model : MapShape -> Model -> Model
 remove_ground_model shape model =
   {model | ground = remove_ground shape model.ground}
 
-remove_ground : Grid.Shape -> List Grid.Shape -> List Grid.Shape
+remove_ground : MapShape -> List MapShape -> List MapShape
 remove_ground shape shape_list =
   case shape_list of
-    [] -> Debug.log "rm ground 1" []
+    [] -> []
     head::tail ->
-      case Grid.difference head shape of
-        Nothing -> Debug.log "rm ground 2"  head :: remove_ground shape shape_list
-        Just d  -> Debug.log "rm ground 3" d ++ (remove_ground shape shape_list )
+      case Grid.difference head.shape shape.shape of
+        Nothing -> head :: remove_ground shape tail
+        Just d  -> (List.map (\x -> newMS x head.color) d) ++ (remove_ground shape tail)
 
-remove_wall : Grid.Path -> List Grid.Path -> List Grid.Path
-remove_wall path path_list = path_list
+remove_wall : MapPath -> List MapPath -> List MapPath
+remove_wall path path_list =
+  (newMP path.path Color.lightGray) :: path_list
+
 
 
 
 -- Manipulating Shapes -----------------------------------------------
+
+msToShapeList : List MapShape -> List Grid.Shape
+msToShapeList mss =
+  List.map (\x -> x.shape) mss
+
+mpToPathList : List MapPath -> List Grid.Path
+mpToPathList mps =
+  List.map (\x -> x.path) mps
 
 max_y_shape : Grid.Shape -> Float
 max_y_shape s =
@@ -823,9 +861,9 @@ max_y_shape s =
         Just y -> y
     Grid.Composite outside holes -> max_y_shape (Grid.Polygon outside)
 
-max_y_ground : List Grid.Shape -> Float
+max_y_ground : List MapShape -> Float
 max_y_ground xs =
-  case List.map max_y_shape xs |> List.maximum of
+  case List.map max_y_shape (msToShapeList xs) |> List.maximum of
     Nothing -> 1
     Just y -> y
 
@@ -838,9 +876,9 @@ max_x_shape s =
         Just x -> x
     Grid.Composite outside holes -> max_x_shape (Grid.Polygon outside)
 
-max_x_ground : List Grid.Shape -> Float
+max_x_ground : List MapShape -> Float
 max_x_ground xs =
-  case List.map max_x_shape xs |> List.maximum of
+  case List.map max_x_shape (msToShapeList xs) |> List.maximum of
     Nothing -> 1
     Just x -> x
 
@@ -850,9 +888,9 @@ max_y_path (Grid.Path p) =
     Nothing -> 1
     Just y -> y
 
-max_y_walls : List Grid.Path -> Float
+max_y_walls : List MapPath -> Float
 max_y_walls xs =
-  case List.map max_y_path xs |> List.maximum of
+  case List.map max_y_path (mpToPathList xs) |> List.maximum of
     Nothing -> 1
     Just y -> y
 
@@ -862,13 +900,16 @@ max_x_path (Grid.Path p) =
     Nothing -> 1
     Just x -> x
 
-max_x_walls : List Grid.Path -> Float
+max_x_walls : List MapPath -> Float
 max_x_walls xs =
-  case List.map max_x_path xs |> List.maximum of
+  case List.map max_x_path (mpToPathList xs) |> List.maximum of
     Nothing -> 1
     Just x -> x
 
--- Extra Helper Functions -------------------------------------------
+               
+
+
+-- Slider Functions ---------------------------------------------------
 
 new_h_slider : Float -> Float -> SingleSlider.SingleSlider Msg
 new_h_slider min val =
@@ -891,6 +932,46 @@ new_w_slider min val =
 
 -- Interacting with the Database -------------------------------------
 
+
+decode_field_default : String -> Decode.Decoder a -> a -> Decode.Decoder a
+decode_field_default field decoder default =
+  Decode.maybe (Decode.field field decoder)
+    |> Decode.map (Maybe.withDefault default)
+
+encode_color : Color -> Encode.Value
+encode_color c =
+  let
+    {red, green, blue, alpha} = Color.toRgba c
+  in
+    Encode.object
+      [ ("red",   Encode.float red)
+      , ("green", Encode.float green)
+      , ("blue",  Encode.float blue)
+      , ("alpha", Encode.float alpha)
+      ]
+
+color_decoder : Decode.Decoder Color
+color_decoder =
+  Decode.map4 Color.rgba
+    (decode_field_default "red"   Decode.float 0)
+    (decode_field_default "green" Decode.float 0)
+    (decode_field_default "blue"  Decode.float 0)
+    (decode_field_default "alpha" Decode.float 1)
+
+
+map_shape_decoder : Decode.Decoder MapShape
+map_shape_decoder =
+  Decode.map2 MapShape
+    (Decode.field "shape" Grid.Json.shapeDecoder)
+    (decode_field_default "color" color_decoder (Color.black))
+
+map_path_decoder : Decode.Decoder MapPath
+map_path_decoder =
+  Decode.map2 MapPath
+    (Decode.field "path"  Grid.Json.pathDecoder)
+    (decode_field_default "color" color_decoder (Color.black))
+
+
 -- Convert the current map into an object that can be saved to the database
 -- Stores the following fields:
 --    - Ground
@@ -898,9 +979,18 @@ new_w_slider min val =
 encode_model : Model -> Encode.Value
 encode_model model =
   let
+    encode_ground map_obj = Encode.object
+      [ ("shape", Grid.Json.encodeShape map_obj.shape)
+      , ("color", encode_color map_obj.color )
+      ]
+    encode_walls map_obj = Encode.object
+      [ ("path", Grid.Json.encodePath map_obj.path)
+      , ("color", encode_color map_obj.color )
+      ]
+
     -- The different features of the map, encoded
-    ground = Encode.list Grid.Json.encodeShape model.ground
-    walls  = Encode.list Grid.Json.encodePath  model.walls
+    ground = Encode.list encode_ground model.ground
+    walls  = Encode.list encode_walls  model.walls
 
     -- The features of the map packaged together
     map = Encode.object [ ("ground", ground), ("walls",  walls)]
@@ -913,15 +1003,15 @@ encode_model model =
 map_decoder : Decode.Decoder Map
 map_decoder =
   let
-    decode_or_empty field decoder default =
-      Decode.maybe (Decode.field field decoder)
-        |> Decode.map (Maybe.withDefault default)
+    ground_decoder = Decode.map MaybeE.values <| Decode.list (Decode.maybe map_shape_decoder)
+    walls_decoder  = Decode.map MaybeE.values <| Decode.list (Decode.maybe map_path_decoder)
 
-    decode_name   = decode_or_empty "name" Decode.string ""
-    decode_ground = decode_or_empty "ground" (Decode.list Grid.Json.shapeDecoder) []
-    decode_walls  = decode_or_empty "walls"  (Decode.list Grid.Json.pathDecoder ) []
+    name_field_decoder   = decode_field_default "name"   Decode.string  ""
+    ground_field_decoder = decode_field_default "ground" ground_decoder []
+    walls_field_decoder  = decode_field_default "walls"  walls_decoder  []
+
   in
-    Decode.map3 Map decode_name decode_ground decode_walls
+    Decode.map3 Map name_field_decoder ground_field_decoder walls_field_decoder
 
 
 decode_map : Encode.Value -> Maybe Map
