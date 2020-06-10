@@ -451,10 +451,10 @@ view model =
                         , Attr.style "margin-top" "5px" ] Tool.toolOptions
     undo = Html.button [ onClick Undo, Attr.style "margin-right" "15px" ] [ Html.text "Undo" ]
     redo = Html.button [ onClick Redo, Attr.style "margin-right" "10px" ] [ Html.text "Redo" ]
-    eraser = Html.button [ onClick ToggleErasing, Attr.style "margin-left" "15px" ] [Html.text (blah model.erasing) ]
-    eraser2 = Html.div [ Attr.style "min-width" "130px"] [ Html.fromUnstyled (Switch.view { isOn = model.erasing
-                                       , label = "Eraser Mode: " ++ (if model.erasing then "On"
-                                                                    else "Off")
+    eraser = Html.div [ Attr.style "min-width" "130px"]
+                      [ Html.fromUnstyled
+                          (Switch.view { isOn = model.erasing
+                                       , label = "Eraser Mode: " ++ (if model.erasing then "On" else "Off")
                                        , handleToggle = ToggleSwitch }) ]
     colorpicker = Html.div [ Attr.style "margin" "15px"
                            , Attr.style "margin-left" "20px" ]
@@ -481,7 +481,7 @@ view model =
                                   Nothing -> SwitchTool Tool.FreeformPen)
                , Attr.style "display" "inline-block"
                , Attr.style "vertical-align" "top" ]
-               [ tools, eraser2, colorpicker, undo, redo, clear ]
+               [ tools, eraser, colorpicker, undo, redo, clear ]
   in
     --sidebar
     Html.div [ Attr.style "display" "flex" ]
@@ -489,7 +489,7 @@ view model =
       -- Styling to create the sidebar
       Html.aside
       [ Attr.css [ Css.width <| Css.pct 20 ]
-      , Attr.style "background" "#444444"
+      , Attr.style "background" "#333333"
       , Attr.align "center"
       ]
       -- Gallery of database maps in the sidebar
@@ -597,42 +597,6 @@ draw_mouse model =
         |> C.filled (C.uniform (Color.rgba 255 0 0 0.6))
         |> C.shift (jsToCol model loc)
 
-
-draw_menu : Model -> C.Collage Msg
-draw_menu model =
-  let
-      width  = scaleGridToCol_i (model.mapWidth - 2)
-      
-      -- fill and line styles
-      outline = C.solid C.ultrathin (C.uniform Color.gray)
-      inline = C.solid C.thin (C.uniform Color.black)
-      grayfill = C.styled (C.uniform (Color.lightGray), inline)
-      blackfill = C.filled (C.uniform (Color.black))
-      bgfill = C.styled (C.uniform (Color.lightGray), outline)
-      
-      -- menu "buttons"; these are really ugly and need to be updated
-      -- but they were convenient to make and they'll do for now
-      lock_auto = C.square 14 |> grayfill |> C.shiftX 25
-                     |> E.onClick (SwitchTool Tool.LockedAutofill)
-      free_auto = C.roundedSquare 15 4 |> grayfill |> C.shiftX 50
-                     |> E.onClick (SwitchTool Tool.FreeformAutofill)
-      lock_pen  = C.square 14 |> blackfill |> C.shiftX 75
-                     |> E.onClick (SwitchTool Tool.LockedPen)
-      free_pen  = C.circle 7 |> blackfill |> C.shiftX 100
-                     |> E.onClick (SwitchTool Tool.FreeformPen)
-      rect_tool = C.rectangle 20 14 |> grayfill |> C.shiftX 130
-                     |> E.onClick (SwitchTool Tool.Rectangle)
-      
-      -- menu shape
-      menu_bg = C.rectangle width 50 |> bgfill
-  in
-      List.foldr (\x -> L.at L.left x) menu_bg
-                 [lock_auto,free_auto,lock_pen,free_pen,rect_tool]
-
-
-
-
---(Grid.Point -> C.Point) -> C.FillStyle -> MapShape -> C.Collage Msg
 
 
 make_thumbnail : Float -> Map -> Html Msg

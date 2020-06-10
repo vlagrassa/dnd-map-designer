@@ -3,12 +3,12 @@
   line-height: 1;
 }
 .elm-switch-container .elm-switch__label {
-  color: rgba(0,0,0,0.54);
+  color: #F9F9F9;
   line-height: 1.15;
   font-size: 12px;
 }
 .elm-switch-container .elm-switch__label--toggled {
-  color: #444444;
+  color: #F9F9F9;
 }
 .elm-switch-container .elm-switch {
   display: inline-block;
@@ -45,6 +45,6 @@
 }
 .elm-switch-container .elm-switch .elm-switch__switch-indicator--toggled {
   left: 17px;
-  color: #444444;
+  color: #F9F9F9;
   border: solid 2px rgba(0,0,0,0.54);
 }
