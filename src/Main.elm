@@ -200,16 +200,19 @@ update msg model = case msg of
                         if model.mouseDown
                         then case (Grid.lineOrigin cur.path, ml) of
                           (Just o, Just loc) ->
-                            newMP (Grid.makeLinePts o (toGrid loc)) model.currentColor
+                            newMP (Grid.makeLinePts o (toGrid loc))
+                                  (if model.erasing then Color.lightGray else model.currentColor)
                           (Nothing, Just loc) ->
-                            newMP (Grid.makeLinePts (toGrid loc) (toGrid loc)) model.currentColor
+                            newMP (Grid.makeLinePts (toGrid loc) (toGrid loc))
+                                  (if model.erasing then Color.lightGray else model.currentColor)
                           _ -> cur
                         else cur
                       Tool.Rectangle -> cur
                       _ -> if model.mouseDown
                            then case ml of
                              Just loc ->
-                               newMP (Grid.addPointIfBeyond 0.1 (toGrid loc) cur.path) model.currentColor
+                               newMP (Grid.addPointIfBeyond 0.1 (toGrid loc) cur.path)
+                                     (if model.erasing then Color.lightGray else model.currentColor)
                              Nothing -> cur
                            else cur
                 , currentRect =
@@ -430,7 +433,7 @@ view : Model -> Html Msg
 view model =
   let
     msg = "D\u{0026}D Map Designer Studio Suite Lite"
-    map = [draw_mouse, draw_paths, draw_ground, draw_grid, draw_bg]
+    map = [draw_mouse, draw_grid, draw_ground, draw_paths, draw_bg]
             |> List.map (\f -> f model)
             |> C.group
             |> R.svg
@@ -530,7 +533,7 @@ draw_grid model =
   let
     scale = scaleGridToCol_i
 
-    grid_style = C.traced (C.solid C.thin (C.uniform Color.gray))
+    grid_style = C.traced (C.solid C.thin (C.uniform (Color.rgba 0 0 0 0.1)))
 
     h_grid_lines = (List.range 0 model.mapHeight)
       |> List.map (\y -> C.segment (0, scale y) (scale model.mapWidth, scale y))
@@ -546,7 +549,7 @@ draw_grid model =
 draw_ground : Model -> C.Collage Msg
 draw_ground model =
   let
-    fill_style = C.uniform (Color.rgba 1 1 1 0.5)
+    fill_style = C.uniform (Color.rgba 1 1 1 0.8)
     line_style = C.solid C.thick (C.uniform Color.black)
   in
     shape_to_collage gridToCol fill_style model.currentRect
@@ -808,7 +811,8 @@ path_to_collage grid_to_collage mp =
   let
       path = mp.path
       col = mp.color
-      line = C.solid C.thick (C.uniform col)
+      line = if col == Color.lightGray then C.solid 20 (C.uniform col)
+             else C.solid C.thick (C.uniform col)
   in
       case path of
         Grid.Path p -> (C.path (List.map grid_to_collage p)) |> C.traced line
@@ -851,7 +855,8 @@ remove_ground shape shape_list =
         Just d  -> (List.map (\x -> newMS x head.color) d) ++ (remove_ground shape tail)
 
 remove_wall : MapPath -> List MapPath -> List MapPath
-remove_wall path path_list = path_list
+remove_wall path path_list =
+  (newMP path.path Color.lightGray) :: path_list
 
 
 
