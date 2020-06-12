@@ -486,52 +486,94 @@ view model =
                , Attr.style "vertical-align" "top" ]
                [ tools, eraser, colorpicker, undo, redo, clear ]
   in
-    --sidebar
+    Html.div
+    [ Attr.align "center"
+    , Attr.style "color" "#FBFBFB"
+    ]
+    [ Html.h3 [ Attr.align "center"
+              , Attr.style "margin" "15px"
+              , Attr.style "font" "25px Optima, sans-serif"
+              , Attr.style "display" "inline-block"
+              ]
+              [ Html.text msg, Html.sup [ ] [ Html.text "\u{2122}"] ]
+
+    , Html.span
+      [ Attr.style "display" "inline-block"
+      , Attr.style "font" "15px Optima, sans-serif"
+      , Attr.style "margin" "25px"
+      , Attr.style "position" "absolute"
+      , Attr.style "right" "0"
+      ]
+      [ Html.text "By "
+      , Html.a [ Attr.style "color" "#FBFBFB", Attr.href "https://github.com/rachelxwang" ] [Html.text "Rachel Wang"]
+      , Html.text " and "
+      , Html.a [ Attr.style "color" "#FBFBFB", Attr.href "https://github.com/vlagrassa" ] [Html.text "Vince LaGrassa"]
+      ]
+    ,
+
+    -- Left sidebar: Map gallery
     Html.div [ Attr.style "display" "flex" ]
     [
       -- Styling to create the sidebar
       Html.aside
       [ Attr.css [ Css.width <| Css.pct 20 ]
-      , Attr.style "background" "#333333"
+      , Attr.style "background" "#444444"
       , Attr.align "center"
       ]
       -- Gallery of database maps in the sidebar
       [ map_gallery model.galleryMaps
       , savebar
       ]
-    ,
-      Html.div
+
+    -- Center area: The map
+    , Html.div
       [ Attr.css
         [ Css.flex <| Css.int 1
-        , Css.overflow Css.auto
+        , Css.height (Css.px 655)
+        , Css.width (Css.pct 60)
+        , Css.overflow Css.hidden
         ]
       ]
-    [
-      Html.div []
-        [ Html.h3 [ Attr.align "center"
-                  , Attr.style "margin" "15px"
-                  , Attr.style "font" "25px Optima, sans-serif"
-                  , Attr.style "color" "#FBFBFB" ]
-                  [ Html.text msg, Html.sup [ ] [ Html.text "\u{2122}"] ]
-        , Html.div [ Attr.align "center"
-                   , Attr.style "margin-bottom" "10px" ]
-                   (List.map Html.fromUnstyled [ SingleSlider.view model.widthSlider
-                                               , SingleSlider.view model.heightSlider ])
-        , Html.div [ Attr.id "map_canvas_container"
+      [
+        -- The actual map itself
+        Html.div []
+        [ Html.div [ Attr.id "map_canvas_container"
                    , Attr.style "display" "block"
                    , Attr.align "center" ]
-                   [ Html.div [ Attr.style "display" "inline-block" ] [map], menu_items ]
+                   [map]
         , Html.canvas
             ( [Attr.style "display" "none" ]
                 ++ (canvas_attributes model) ) [ ]
         ]
       ]
 
-      -- Global style tag to show the gallery map label tags on mouseover
-      , Css.Global.global
-        [ Css.Global.typeSelector ".gallerymapcontainer:hover .gallerymaptag"
-          [Css.visibility Css.visible]
+    --  Right sidebar: Map tools
+    , Html.aside
+      [ Attr.css
+        [ Css.width <| Css.pct 20 ]
+      , Attr.style "background" "#444444"
+      , Attr.align "center"
+      , Attr.css
+        [ Css.displayFlex
+        , Css.flexWrap Css.wrap
+        , Css.justifyContent Css.center
+        , Css.alignItems Css.center
         ]
+      ]
+      [
+        Html.div [Attr.align "center"] [menu_items]
+      , Html.div [ Attr.align "center"
+                   , Attr.style "margin-bottom" "10px" ]
+                   (List.map Html.fromUnstyled [ SingleSlider.view model.widthSlider
+                                               , SingleSlider.view model.heightSlider ])
+      ]
+
+      -- Global style tag to show the gallery map label tags on mouseover
+    , Css.Global.global
+      [ Css.Global.typeSelector ".gallerymapcontainer:hover .gallerymaptag"
+        [Css.visibility Css.visible]
+      ]
+    ]
     ]
 
 
@@ -673,7 +715,7 @@ make_thumbnail thumbnail_size map =
 map_gallery : List Map -> Html Msg
 map_gallery maps =
   let
-    thumbnails = List.map (make_thumbnail 190) maps
+    thumbnails = List.map (make_thumbnail 140) maps
 
     make_flexbox content =
       Html.div
@@ -697,7 +739,7 @@ map_gallery maps =
               , Css.alignItems Css.center
               ]
           ]
-          (List.map make_flexbox thumbnails)
+          (List.take 6 <| List.map make_flexbox thumbnails)
         ]
 
 
