@@ -57,6 +57,7 @@ type alias Model =
   , mouseDown : Bool
   , tool : Tool.Tool
   , galleryMaps : List Map
+  , galleryPage : Int
   , mapName : String
   , undoStack : Stack.Stack (List MapShape, List MapPath)
   , redoStack : Stack.Stack (List MapShape, List MapPath)
@@ -99,6 +100,7 @@ type Msg
   | HeightSliderChange Float
   | ColorPickerMsg ColorPicker.Msg
   | MapName String
+  | GoToGalleryPage Int
 
 type alias Flags = ()
 
@@ -156,6 +158,7 @@ initModel =
   , mouseDown = False
   , tool = Tool.FreeformPen
   , galleryMaps = []
+  , galleryPage = 0
   , mapName = ""
   , undoStack = Stack.empty 5
   , redoStack = Stack.empty 5
@@ -421,6 +424,9 @@ update msg model = case msg of
   MapName str ->
     ( { model | mapName = str }, Cmd.none)
 
+  GoToGalleryPage page ->
+    ( { model | galleryPage = page }, Cmd.none )
+
 
 
 -- View --------------------------------------------------------------
@@ -521,7 +527,7 @@ view model =
       , Attr.align "center"
       ]
       -- Gallery of database maps in the sidebar
-      [ map_gallery model.galleryMaps
+      [ map_gallery model.galleryPage model.galleryMaps
       , savebar
       ]
 
@@ -691,8 +697,8 @@ make_thumbnail thumbnail_size map =
 
           -- Positioning: bottom left corner
           [ Css.position Css.absolute
-          , Css.bottom  (Css.px 5)
-          , Css.left    (Css.px 5)
+          , Css.bottom  (Css.px 2)
+          , Css.left    (Css.px 0)
 
           -- Rounded corners
           , Css.padding      (Css.px 5)
@@ -712,10 +718,12 @@ make_thumbnail thumbnail_size map =
       ]
 
 
-map_gallery : List Map -> Html Msg
-map_gallery maps =
+map_gallery : Int -> List Map -> Html Msg
+map_gallery page_num maps =
   let
-    thumbnails = List.map (make_thumbnail 140) maps
+    page_max = (List.length maps - 1) // 6
+
+    make_thumbnails = List.map (make_thumbnail 140 >> make_flexbox)
 
     make_flexbox content =
       Html.div
@@ -726,10 +734,16 @@ map_gallery maps =
         , Attr.align "center"
         ]
         [ content ]
+
+    get_page = List.drop (6 * page_num) >> List.take 6
   in
     Html.div
       [ Attr.align "center" ]
+
+      -- Title
       [ Html.h3 [Attr.style "color" "#F7F9F9"] [Html.text "Gallery"]
+
+      -- Thumbnails
       , Html.div
           [ Attr.css
               [ Css.displayFlex
@@ -737,10 +751,36 @@ map_gallery maps =
               , Css.margin2 Css.zero (Css.px -8)
               , Css.justifyContent Css.center
               , Css.alignItems Css.center
+              , Css.height (Css.px 435)
               ]
           ]
-          (List.take 6 <| List.map make_flexbox thumbnails)
+          (make_thumbnails <| get_page <| maps)
+
+      -- Bottom bar for page info
+      , Html.div
+        [ Attr.style "width" "100%"
+        , Attr.style "margin-top" "20px"
+        , Attr.style "margin-bottom" "5px"
         ]
+        [ Html.button
+          [ Attr.style "width" "35%"
+          , onClick <| GoToGalleryPage <| max (page_num - 1) 0
+          ]
+          [ Html.text "\u{25C5}" ]
+        , Html.span
+          [ Attr.css [ Css.margin (Css.px 10) ] ]
+          [ Html.text "Pg "
+          , Html.text <| fromInt (page_num + 1)
+          , Html.text "/"
+          , Html.text <| fromInt (page_max + 1)
+          ]
+        , Html.button
+          [ Attr.style "width" "35%"
+          , onClick <| GoToGalleryPage <| min (page_num + 1) page_max
+          ]
+          [ Html.text "\u{25BB}" ]
+        ]
+      ]
 
 
 
