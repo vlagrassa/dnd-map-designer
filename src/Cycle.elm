@@ -277,7 +277,7 @@ weaveMatch match_func decision_func init_dir c_1 c_2 =
 
               -- If match, then
               Just other_cycle_shifted -> case other_cycle_shifted of
-                Empty -> Debug.todo "Not Possible"
+                Empty -> []
 
                 Cycle _ _ _ ->
                   case decision_func n main_cycle other_cycle_shifted last_dec of
@@ -320,7 +320,8 @@ weaveMatchDiff match_func decision_func_1 decision_func_2 init_dir c_1 c_2 =
 
             -- If match, then
             Just other_cycle_shifted -> case other_cycle_shifted of
-              Empty -> Debug.todo "Not Possible"
+              -- Not possible
+              Empty -> []
 
               Cycle _ _ _ ->
                 case decision_func first_cycle n main_cycle other_cycle_shifted last_dec of

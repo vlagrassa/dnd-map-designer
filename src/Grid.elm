@@ -502,8 +502,7 @@ remove_hole hole =
     -- Remove the passed hole from a PolygonTuple
     remove_hole_from_tuple : PolygonTuple -> List PolygonTuple
     remove_hole_from_tuple (outline, old_holes) =
-      difference_polygons outline (Debug.log "Removing hole" hole)
-        |> Debug.log "Successful difference"
+      difference_polygons outline hole
         |> Maybe.map (handle_difference old_holes)
         |> Maybe.withDefault [(outline, old_holes)]
 
