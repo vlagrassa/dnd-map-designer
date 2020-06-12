@@ -4,7 +4,7 @@
     <title>DND Map Designer Studio Suite Lite™</title>
     <meta name="author" content="Rachel Wang">
     <meta name="author" content="Vince LaGrassa">
-		<link rel="stylesheet" type="text/css" href="FormElements.css" />
+		<link rel="stylesheet" type="text/css" href="src/FormElements.css" />
   </head>
   <body style="background-color:#444444; margin:0px;">
     <div id="elm-app"></div>
@@ -35,7 +35,7 @@
       firebase.analytics();
     </script>
 
-    <script src="elm-app.js"></script>
+    <script src="build/elm-app.js"></script>
     <script>
       var app = Elm.Main.init({
         node: document.getElementById("elm-app")
@@ -113,6 +113,6 @@
 
     </script>
 
-    <script src="firebase.js"></script>`
+    <script src="src/firebase.js"></script>`
   </body>
 </html>
