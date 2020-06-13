@@ -5335,6 +5335,7 @@ var $author$project$Main$initModel = {
 	editState: true,
 	erasing: false,
 	galleryMaps: _List_Nil,
+	galleryPage: 0,
 	ground: _List_Nil,
 	heightSlider: A2($author$project$Main$new_h_slider, 1, 15),
 	mapHeight: 20,
@@ -10727,12 +10728,19 @@ var $author$project$Main$update = F2(
 						model,
 						{ground: map.ground, mapName: map.name, walls: map.walls}),
 					$elm$core$Platform$Cmd$none);
-			default:
+			case 'MapName':
 				var str = msg.a;
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
 						{mapName: str}),
+					$elm$core$Platform$Cmd$none);
+			default:
+				var page = msg.a;
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{galleryPage: page}),
 					$elm$core$Platform$Cmd$none);
 		}
 	});
@@ -10756,6 +10764,13 @@ var $author$project$Main$Undo = {$: 'Undo'};
 var $author$project$Main$UploadMap = function (a) {
 	return {$: 'UploadMap', a: a};
 };
+var $rtfeldman$elm_css$VirtualDom$Styled$Node = F3(
+	function (a, b, c) {
+		return {$: 'Node', a: a, b: b, c: c};
+	});
+var $rtfeldman$elm_css$VirtualDom$Styled$node = $rtfeldman$elm_css$VirtualDom$Styled$Node;
+var $rtfeldman$elm_css$Html$Styled$node = $rtfeldman$elm_css$VirtualDom$Styled$node;
+var $rtfeldman$elm_css$Html$Styled$a = $rtfeldman$elm_css$Html$Styled$node('a');
 var $rtfeldman$elm_css$VirtualDom$Styled$Attribute = F3(
 	function (a, b, c) {
 		return {$: 'Attribute', a: a, b: b, c: c};
@@ -10783,18 +10798,107 @@ var $rtfeldman$elm_css$Html$Styled$Attributes$stringProperty = F2(
 			$elm$json$Json$Encode$string(string));
 	});
 var $rtfeldman$elm_css$Html$Styled$Attributes$align = $rtfeldman$elm_css$Html$Styled$Attributes$stringProperty('align');
-var $rtfeldman$elm_css$VirtualDom$Styled$Node = F3(
-	function (a, b, c) {
-		return {$: 'Node', a: a, b: b, c: c};
-	});
-var $rtfeldman$elm_css$VirtualDom$Styled$node = $rtfeldman$elm_css$VirtualDom$Styled$Node;
-var $rtfeldman$elm_css$Html$Styled$node = $rtfeldman$elm_css$VirtualDom$Styled$node;
-var $rtfeldman$elm_css$Html$Styled$aside = $rtfeldman$elm_css$Html$Styled$node('aside');
-var $rtfeldman$elm_css$Css$Structure$Compatible = {$: 'Compatible'};
-var $rtfeldman$elm_css$Css$auto = {alignItemsOrAuto: $rtfeldman$elm_css$Css$Structure$Compatible, cursor: $rtfeldman$elm_css$Css$Structure$Compatible, flexBasis: $rtfeldman$elm_css$Css$Structure$Compatible, intOrAuto: $rtfeldman$elm_css$Css$Structure$Compatible, justifyContentOrAuto: $rtfeldman$elm_css$Css$Structure$Compatible, lengthOrAuto: $rtfeldman$elm_css$Css$Structure$Compatible, lengthOrAutoOrCoverOrContain: $rtfeldman$elm_css$Css$Structure$Compatible, lengthOrNumberOrAutoOrNoneOrContent: $rtfeldman$elm_css$Css$Structure$Compatible, overflow: $rtfeldman$elm_css$Css$Structure$Compatible, pointerEvents: $rtfeldman$elm_css$Css$Structure$Compatible, tableLayout: $rtfeldman$elm_css$Css$Structure$Compatible, textRendering: $rtfeldman$elm_css$Css$Structure$Compatible, touchAction: $rtfeldman$elm_css$Css$Structure$Compatible, value: 'auto'};
+var $rtfeldman$elm_css$Css$Preprocess$ApplyStyles = function (a) {
+	return {$: 'ApplyStyles', a: a};
+};
 var $rtfeldman$elm_css$Css$Preprocess$AppendProperty = function (a) {
 	return {$: 'AppendProperty', a: a};
 };
+var $rtfeldman$elm_css$Css$Internal$property = F2(
+	function (key, value) {
+		return $rtfeldman$elm_css$Css$Preprocess$AppendProperty(key + (':' + value));
+	});
+var $rtfeldman$elm_css$Css$Internal$getOverloadedProperty = F3(
+	function (functionName, desiredKey, style) {
+		getOverloadedProperty:
+		while (true) {
+			switch (style.$) {
+				case 'AppendProperty':
+					var str = style.a;
+					var key = A2(
+						$elm$core$Maybe$withDefault,
+						'',
+						$elm$core$List$head(
+							A2($elm$core$String$split, ':', str)));
+					return A2($rtfeldman$elm_css$Css$Internal$property, desiredKey, key);
+				case 'ExtendSelector':
+					var selector = style.a;
+					return A2($rtfeldman$elm_css$Css$Internal$property, desiredKey, 'elm-css-error-cannot-apply-' + (functionName + '-with-inapplicable-Style-for-selector'));
+				case 'NestSnippet':
+					var combinator = style.a;
+					return A2($rtfeldman$elm_css$Css$Internal$property, desiredKey, 'elm-css-error-cannot-apply-' + (functionName + '-with-inapplicable-Style-for-combinator'));
+				case 'WithPseudoElement':
+					var pseudoElement = style.a;
+					return A2($rtfeldman$elm_css$Css$Internal$property, desiredKey, 'elm-css-error-cannot-apply-' + (functionName + '-with-inapplicable-Style-for-pseudo-element setter'));
+				case 'WithMedia':
+					return A2($rtfeldman$elm_css$Css$Internal$property, desiredKey, 'elm-css-error-cannot-apply-' + (functionName + '-with-inapplicable-Style-for-media-query'));
+				case 'WithKeyframes':
+					return A2($rtfeldman$elm_css$Css$Internal$property, desiredKey, 'elm-css-error-cannot-apply-' + (functionName + '-with-inapplicable-Style-for-keyframes'));
+				default:
+					if (!style.a.b) {
+						return A2($rtfeldman$elm_css$Css$Internal$property, desiredKey, 'elm-css-error-cannot-apply-' + (functionName + '-with-empty-Style'));
+					} else {
+						if (!style.a.b.b) {
+							var _v1 = style.a;
+							var only = _v1.a;
+							var $temp$functionName = functionName,
+								$temp$desiredKey = desiredKey,
+								$temp$style = only;
+							functionName = $temp$functionName;
+							desiredKey = $temp$desiredKey;
+							style = $temp$style;
+							continue getOverloadedProperty;
+						} else {
+							var _v2 = style.a;
+							var first = _v2.a;
+							var rest = _v2.b;
+							var $temp$functionName = functionName,
+								$temp$desiredKey = desiredKey,
+								$temp$style = $rtfeldman$elm_css$Css$Preprocess$ApplyStyles(rest);
+							functionName = $temp$functionName;
+							desiredKey = $temp$desiredKey;
+							style = $temp$style;
+							continue getOverloadedProperty;
+						}
+					}
+			}
+		}
+	});
+var $rtfeldman$elm_css$Css$Internal$IncompatibleUnits = {$: 'IncompatibleUnits'};
+var $rtfeldman$elm_css$Css$Structure$Compatible = {$: 'Compatible'};
+var $rtfeldman$elm_css$Css$Internal$lengthConverter = F3(
+	function (units, unitLabel, numericValue) {
+		return {
+			absoluteLength: $rtfeldman$elm_css$Css$Structure$Compatible,
+			calc: $rtfeldman$elm_css$Css$Structure$Compatible,
+			flexBasis: $rtfeldman$elm_css$Css$Structure$Compatible,
+			fontSize: $rtfeldman$elm_css$Css$Structure$Compatible,
+			length: $rtfeldman$elm_css$Css$Structure$Compatible,
+			lengthOrAuto: $rtfeldman$elm_css$Css$Structure$Compatible,
+			lengthOrAutoOrCoverOrContain: $rtfeldman$elm_css$Css$Structure$Compatible,
+			lengthOrMinMaxDimension: $rtfeldman$elm_css$Css$Structure$Compatible,
+			lengthOrNone: $rtfeldman$elm_css$Css$Structure$Compatible,
+			lengthOrNoneOrMinMaxDimension: $rtfeldman$elm_css$Css$Structure$Compatible,
+			lengthOrNumber: $rtfeldman$elm_css$Css$Structure$Compatible,
+			lengthOrNumberOrAutoOrNoneOrContent: $rtfeldman$elm_css$Css$Structure$Compatible,
+			numericValue: numericValue,
+			textIndent: $rtfeldman$elm_css$Css$Structure$Compatible,
+			unitLabel: unitLabel,
+			units: units,
+			value: _Utils_ap(
+				$elm$core$String$fromFloat(numericValue),
+				unitLabel)
+		};
+	});
+var $rtfeldman$elm_css$Css$Internal$lengthForOverloadedProperty = A3($rtfeldman$elm_css$Css$Internal$lengthConverter, $rtfeldman$elm_css$Css$Internal$IncompatibleUnits, '', 0);
+var $rtfeldman$elm_css$Css$alignItems = function (fn) {
+	return A3(
+		$rtfeldman$elm_css$Css$Internal$getOverloadedProperty,
+		'alignItems',
+		'align-items',
+		fn($rtfeldman$elm_css$Css$Internal$lengthForOverloadedProperty));
+};
+var $rtfeldman$elm_css$Html$Styled$aside = $rtfeldman$elm_css$Html$Styled$node('aside');
 var $rtfeldman$elm_css$Css$property = F2(
 	function (key, value) {
 		return $rtfeldman$elm_css$Css$Preprocess$AppendProperty(key + (':' + value));
@@ -10867,6 +10971,7 @@ var $author$project$Main$canvas_attributes = function (m) {
 			$rtfeldman$elm_css$Html$Styled$Attributes$id('myCanvas')
 		]);
 };
+var $rtfeldman$elm_css$Css$center = $rtfeldman$elm_css$Css$prop1('center');
 var $rtfeldman$elm_css$VirtualDom$Styled$murmurSeed = 15739;
 var $rtfeldman$elm_css$VirtualDom$Styled$getClassname = function (styles) {
 	return $elm$core$List$isEmpty(styles) ? 'unstyled' : A2(
@@ -10894,6 +10999,7 @@ var $rtfeldman$elm_css$Html$Styled$Internal$css = function (styles) {
 	return A3($rtfeldman$elm_css$VirtualDom$Styled$Attribute, classProperty, styles, classname);
 };
 var $rtfeldman$elm_css$Html$Styled$Attributes$css = $rtfeldman$elm_css$Html$Styled$Internal$css;
+var $rtfeldman$elm_css$Css$displayFlex = A2($rtfeldman$elm_css$Css$property, 'display', 'flex');
 var $rtfeldman$elm_css$Html$Styled$div = $rtfeldman$elm_css$Html$Styled$node('div');
 var $timjs$elm_collage$Collage$Flat = {$: 'Flat'};
 var $timjs$elm_collage$Collage$Sharp = {$: 'Sharp'};
@@ -11414,6 +11520,7 @@ var $author$project$Main$encode_model = function (model) {
 			]));
 };
 var $rtfeldman$elm_css$Css$flex = $rtfeldman$elm_css$Css$prop1('flex');
+var $rtfeldman$elm_css$Css$flexWrap = $rtfeldman$elm_css$Css$prop1('flex-wrap');
 var $rtfeldman$elm_css$VirtualDom$Styled$Unstyled = function (a) {
 	return {$: 'Unstyled', a: a};
 };
@@ -11433,6 +11540,11 @@ var $rtfeldman$elm_css$Css$Global$global = function (snippets) {
 							$rtfeldman$elm_css$Css$Preprocess$stylesheet(snippets)))))));
 };
 var $rtfeldman$elm_css$Html$Styled$h3 = $rtfeldman$elm_css$Html$Styled$node('h3');
+var $rtfeldman$elm_css$Css$height = $rtfeldman$elm_css$Css$prop1('height');
+var $rtfeldman$elm_css$Css$hidden = {borderStyle: $rtfeldman$elm_css$Css$Structure$Compatible, overflow: $rtfeldman$elm_css$Css$Structure$Compatible, value: 'hidden', visibility: $rtfeldman$elm_css$Css$Structure$Compatible};
+var $rtfeldman$elm_css$Html$Styled$Attributes$href = function (url) {
+	return A2($rtfeldman$elm_css$Html$Styled$Attributes$stringProperty, 'href', url);
+};
 var $rtfeldman$elm_css$Html$Styled$input = $rtfeldman$elm_css$Html$Styled$node('input');
 var $rtfeldman$elm_css$Css$UnitlessInteger = {$: 'UnitlessInteger'};
 var $rtfeldman$elm_css$Css$int = function (val) {
@@ -11448,6 +11560,13 @@ var $rtfeldman$elm_css$Css$int = function (val) {
 		units: $rtfeldman$elm_css$Css$UnitlessInteger,
 		value: $elm$core$String$fromInt(val)
 	};
+};
+var $rtfeldman$elm_css$Css$justifyContent = function (fn) {
+	return A3(
+		$rtfeldman$elm_css$Css$Internal$getOverloadedProperty,
+		'justifyContent',
+		'justify-content',
+		fn($rtfeldman$elm_css$Css$Internal$lengthForOverloadedProperty));
 };
 var $rtfeldman$elm_css$VirtualDom$Styled$KeyedNode = F3(
 	function (a, b, c) {
@@ -11560,113 +11679,31 @@ var $rtfeldman$elm_css$VirtualDom$Styled$map = F2(
 		}
 	});
 var $rtfeldman$elm_css$Html$Styled$map = $rtfeldman$elm_css$VirtualDom$Styled$map;
-var $rtfeldman$elm_css$Css$Preprocess$ApplyStyles = function (a) {
-	return {$: 'ApplyStyles', a: a};
+var $author$project$Main$GoToGalleryPage = function (a) {
+	return {$: 'GoToGalleryPage', a: a};
 };
-var $rtfeldman$elm_css$Css$Internal$property = F2(
-	function (key, value) {
-		return $rtfeldman$elm_css$Css$Preprocess$AppendProperty(key + (':' + value));
-	});
-var $rtfeldman$elm_css$Css$Internal$getOverloadedProperty = F3(
-	function (functionName, desiredKey, style) {
-		getOverloadedProperty:
+var $elm$core$List$drop = F2(
+	function (n, list) {
+		drop:
 		while (true) {
-			switch (style.$) {
-				case 'AppendProperty':
-					var str = style.a;
-					var key = A2(
-						$elm$core$Maybe$withDefault,
-						'',
-						$elm$core$List$head(
-							A2($elm$core$String$split, ':', str)));
-					return A2($rtfeldman$elm_css$Css$Internal$property, desiredKey, key);
-				case 'ExtendSelector':
-					var selector = style.a;
-					return A2($rtfeldman$elm_css$Css$Internal$property, desiredKey, 'elm-css-error-cannot-apply-' + (functionName + '-with-inapplicable-Style-for-selector'));
-				case 'NestSnippet':
-					var combinator = style.a;
-					return A2($rtfeldman$elm_css$Css$Internal$property, desiredKey, 'elm-css-error-cannot-apply-' + (functionName + '-with-inapplicable-Style-for-combinator'));
-				case 'WithPseudoElement':
-					var pseudoElement = style.a;
-					return A2($rtfeldman$elm_css$Css$Internal$property, desiredKey, 'elm-css-error-cannot-apply-' + (functionName + '-with-inapplicable-Style-for-pseudo-element setter'));
-				case 'WithMedia':
-					return A2($rtfeldman$elm_css$Css$Internal$property, desiredKey, 'elm-css-error-cannot-apply-' + (functionName + '-with-inapplicable-Style-for-media-query'));
-				case 'WithKeyframes':
-					return A2($rtfeldman$elm_css$Css$Internal$property, desiredKey, 'elm-css-error-cannot-apply-' + (functionName + '-with-inapplicable-Style-for-keyframes'));
-				default:
-					if (!style.a.b) {
-						return A2($rtfeldman$elm_css$Css$Internal$property, desiredKey, 'elm-css-error-cannot-apply-' + (functionName + '-with-empty-Style'));
-					} else {
-						if (!style.a.b.b) {
-							var _v1 = style.a;
-							var only = _v1.a;
-							var $temp$functionName = functionName,
-								$temp$desiredKey = desiredKey,
-								$temp$style = only;
-							functionName = $temp$functionName;
-							desiredKey = $temp$desiredKey;
-							style = $temp$style;
-							continue getOverloadedProperty;
-						} else {
-							var _v2 = style.a;
-							var first = _v2.a;
-							var rest = _v2.b;
-							var $temp$functionName = functionName,
-								$temp$desiredKey = desiredKey,
-								$temp$style = $rtfeldman$elm_css$Css$Preprocess$ApplyStyles(rest);
-							functionName = $temp$functionName;
-							desiredKey = $temp$desiredKey;
-							style = $temp$style;
-							continue getOverloadedProperty;
-						}
-					}
+			if (n <= 0) {
+				return list;
+			} else {
+				if (!list.b) {
+					return list;
+				} else {
+					var x = list.a;
+					var xs = list.b;
+					var $temp$n = n - 1,
+						$temp$list = xs;
+					n = $temp$n;
+					list = $temp$list;
+					continue drop;
+				}
 			}
 		}
 	});
-var $rtfeldman$elm_css$Css$Internal$IncompatibleUnits = {$: 'IncompatibleUnits'};
-var $rtfeldman$elm_css$Css$Internal$lengthConverter = F3(
-	function (units, unitLabel, numericValue) {
-		return {
-			absoluteLength: $rtfeldman$elm_css$Css$Structure$Compatible,
-			calc: $rtfeldman$elm_css$Css$Structure$Compatible,
-			flexBasis: $rtfeldman$elm_css$Css$Structure$Compatible,
-			fontSize: $rtfeldman$elm_css$Css$Structure$Compatible,
-			length: $rtfeldman$elm_css$Css$Structure$Compatible,
-			lengthOrAuto: $rtfeldman$elm_css$Css$Structure$Compatible,
-			lengthOrAutoOrCoverOrContain: $rtfeldman$elm_css$Css$Structure$Compatible,
-			lengthOrMinMaxDimension: $rtfeldman$elm_css$Css$Structure$Compatible,
-			lengthOrNone: $rtfeldman$elm_css$Css$Structure$Compatible,
-			lengthOrNoneOrMinMaxDimension: $rtfeldman$elm_css$Css$Structure$Compatible,
-			lengthOrNumber: $rtfeldman$elm_css$Css$Structure$Compatible,
-			lengthOrNumberOrAutoOrNoneOrContent: $rtfeldman$elm_css$Css$Structure$Compatible,
-			numericValue: numericValue,
-			textIndent: $rtfeldman$elm_css$Css$Structure$Compatible,
-			unitLabel: unitLabel,
-			units: units,
-			value: _Utils_ap(
-				$elm$core$String$fromFloat(numericValue),
-				unitLabel)
-		};
-	});
-var $rtfeldman$elm_css$Css$Internal$lengthForOverloadedProperty = A3($rtfeldman$elm_css$Css$Internal$lengthConverter, $rtfeldman$elm_css$Css$Internal$IncompatibleUnits, '', 0);
-var $rtfeldman$elm_css$Css$alignItems = function (fn) {
-	return A3(
-		$rtfeldman$elm_css$Css$Internal$getOverloadedProperty,
-		'alignItems',
-		'align-items',
-		fn($rtfeldman$elm_css$Css$Internal$lengthForOverloadedProperty));
-};
-var $rtfeldman$elm_css$Css$center = $rtfeldman$elm_css$Css$prop1('center');
-var $rtfeldman$elm_css$Css$displayFlex = A2($rtfeldman$elm_css$Css$property, 'display', 'flex');
 var $rtfeldman$elm_css$Css$flexBasis = $rtfeldman$elm_css$Css$prop1('flex-basis');
-var $rtfeldman$elm_css$Css$flexWrap = $rtfeldman$elm_css$Css$prop1('flex-wrap');
-var $rtfeldman$elm_css$Css$justifyContent = function (fn) {
-	return A3(
-		$rtfeldman$elm_css$Css$Internal$getOverloadedProperty,
-		'justifyContent',
-		'justify-content',
-		fn($rtfeldman$elm_css$Css$Internal$lengthForOverloadedProperty));
-};
 var $author$project$Main$LoadGalleryMap = function (a) {
 	return {$: 'LoadGalleryMap', a: a};
 };
@@ -11675,11 +11712,261 @@ var $rtfeldman$elm_css$Css$backgroundColor = function (c) {
 	return A2($rtfeldman$elm_css$Css$property, 'background-color', c.value);
 };
 var $rtfeldman$elm_css$Css$borderRadius = $rtfeldman$elm_css$Css$prop1('border-radius');
+var $elm$core$Basics$cos = _Basics_cos;
+var $elm$core$Basics$sin = _Basics_sin;
+var $timjs$elm_collage$Collage$Core$apply = function (_v0) {
+	var shift = _v0.shift;
+	var scale = _v0.scale;
+	var rotation = _v0.rotation;
+	var rotated = function (_v5) {
+		var x = _v5.a;
+		var y = _v5.b;
+		var s = $elm$core$Basics$sin(rotation);
+		var c = $elm$core$Basics$cos(rotation);
+		return _Utils_Tuple2((c * x) - (s * y), (s * x) + (c * y));
+	};
+	var _v1 = scale;
+	var sx = _v1.a;
+	var sy = _v1.b;
+	var scaled = function (_v4) {
+		var x = _v4.a;
+		var y = _v4.b;
+		return _Utils_Tuple2(sx * x, sy * y);
+	};
+	var _v2 = shift;
+	var dx = _v2.a;
+	var dy = _v2.b;
+	var shifted = function (_v3) {
+		var x = _v3.a;
+		var y = _v3.b;
+		return _Utils_Tuple2(x + dx, y + dy);
+	};
+	return A2(
+		$elm$core$Basics$composeL,
+		A2($elm$core$Basics$composeL, shifted, scaled),
+		rotated);
+};
+var $timjs$elm_collage$Collage$Layout$handlePoints = function (thickness) {
+	var thicken = function (_v0) {
+		var x = _v0.a;
+		var y = _v0.b;
+		var t = thickness / 2;
+		return _Utils_Tuple2(
+			(x < 0) ? (x - t) : (x + t),
+			(y < 0) ? (y - t) : (y + t));
+	};
+	return $elm$core$List$map(thicken);
+};
+var $timjs$elm_collage$Collage$Layout$handleBox = F2(
+	function (thickness, _v0) {
+		var w = _v0.a;
+		var h = _v0.b;
+		var y = h / 2;
+		var x = w / 2;
+		return A2(
+			$timjs$elm_collage$Collage$Layout$handlePoints,
+			thickness,
+			_List_fromArray(
+				[
+					_Utils_Tuple2(-x, -y),
+					_Utils_Tuple2(x, -y),
+					_Utils_Tuple2(x, y),
+					_Utils_Tuple2(-x, y)
+				]));
+	});
+var $elm$core$List$minimum = function (list) {
+	if (list.b) {
+		var x = list.a;
+		var xs = list.b;
+		return $elm$core$Maybe$Just(
+			A3($elm$core$List$foldl, $elm$core$Basics$min, x, xs));
+	} else {
+		return $elm$core$Maybe$Nothing;
+	}
+};
+var $timjs$elm_collage$Collage$Layout$unpack = function (_v0) {
+	var toTop = _v0.toTop;
+	var toBottom = _v0.toBottom;
+	var toRight = _v0.toRight;
+	var toLeft = _v0.toLeft;
+	return _List_fromArray(
+		[
+			_Utils_Tuple2(-toLeft, -toBottom),
+			_Utils_Tuple2(toRight, -toBottom),
+			_Utils_Tuple2(toRight, toTop),
+			_Utils_Tuple2(-toLeft, toTop)
+		]);
+};
+var $timjs$elm_collage$Collage$Layout$distances = function (col) {
+	var points = $timjs$elm_collage$Collage$Layout$handleBasic(col.basic);
+	var _v8 = $elm$core$List$unzip(
+		A2(
+			$elm$core$List$map,
+			$timjs$elm_collage$Collage$Core$apply(col),
+			points));
+	var xs = _v8.a;
+	var ys = _v8.b;
+	return {
+		toBottom: -A2(
+			$elm$core$Maybe$withDefault,
+			0,
+			$elm$core$List$minimum(ys)),
+		toLeft: -A2(
+			$elm$core$Maybe$withDefault,
+			0,
+			$elm$core$List$minimum(xs)),
+		toRight: A2(
+			$elm$core$Maybe$withDefault,
+			0,
+			$elm$core$List$maximum(xs)),
+		toTop: A2(
+			$elm$core$Maybe$withDefault,
+			0,
+			$elm$core$List$maximum(ys))
+	};
+};
+var $timjs$elm_collage$Collage$Layout$handleBasic = function (basic) {
+	handleBasic:
+	while (true) {
+		switch (basic.$) {
+			case 'Shape':
+				switch (basic.b.$) {
+					case 'Circle':
+						var _v1 = basic.a;
+						var thickness = _v1.b.thickness;
+						var r = basic.b.a;
+						var d = 2 * r;
+						return A2(
+							$timjs$elm_collage$Collage$Layout$handleBox,
+							thickness,
+							_Utils_Tuple2(d, d));
+					case 'Ellipse':
+						var _v2 = basic.a;
+						var thickness = _v2.b.thickness;
+						var _v3 = basic.b;
+						var rx = _v3.a;
+						var ry = _v3.b;
+						return A2(
+							$timjs$elm_collage$Collage$Layout$handleBox,
+							thickness,
+							_Utils_Tuple2(2 * rx, 2 * ry));
+					case 'Rectangle':
+						var _v4 = basic.a;
+						var thickness = _v4.b.thickness;
+						var _v5 = basic.b;
+						var w = _v5.a;
+						var h = _v5.b;
+						return A2(
+							$timjs$elm_collage$Collage$Layout$handleBox,
+							thickness,
+							_Utils_Tuple2(w, h));
+					case 'Polygon':
+						var _v6 = basic.a;
+						var thickness = _v6.b.thickness;
+						var ps = basic.b.a;
+						return A2($timjs$elm_collage$Collage$Layout$handlePoints, thickness, ps);
+					default:
+						var _v7 = basic.a;
+						var line = _v7.b;
+						var path = basic.b.a;
+						var $temp$basic = A2($timjs$elm_collage$Collage$Core$Path, line, path);
+						basic = $temp$basic;
+						continue handleBasic;
+				}
+			case 'Path':
+				var thickness = basic.a.thickness;
+				var cap = basic.a.cap;
+				var ps = basic.b.a;
+				return A2(
+					$timjs$elm_collage$Collage$Layout$handlePoints,
+					_Utils_eq(cap, $timjs$elm_collage$Collage$Flat) ? 0 : thickness,
+					ps);
+			case 'Text':
+				var dims = basic.a;
+				return A2($timjs$elm_collage$Collage$Layout$handleBox, 0, dims);
+			case 'Image':
+				var dims = basic.a;
+				return A2($timjs$elm_collage$Collage$Layout$handleBox, 0, dims);
+			case 'Html':
+				var dims = basic.a;
+				return A2($timjs$elm_collage$Collage$Layout$handleBox, 0, dims);
+			case 'Group':
+				var cols = basic.a;
+				return A2(
+					$timjs$elm_collage$Collage$Layout$handlePoints,
+					0,
+					$elm$core$List$concat(
+						A2(
+							$elm$core$List$map,
+							A2($elm$core$Basics$composeR, $timjs$elm_collage$Collage$Layout$distances, $timjs$elm_collage$Collage$Layout$unpack),
+							cols)));
+			default:
+				var back = basic.b;
+				return A2(
+					$timjs$elm_collage$Collage$Layout$handlePoints,
+					0,
+					$timjs$elm_collage$Collage$Layout$unpack(
+						$timjs$elm_collage$Collage$Layout$distances(back)));
+		}
+	}
+};
+var $author$project$Main$center_on_content = function (collage) {
+	var envelope = $timjs$elm_collage$Collage$Layout$distances(collage);
+	var x_center = (envelope.toRight + envelope.toLeft) / 2;
+	var y_center = (envelope.toTop + envelope.toBottom) / 2;
+	return A2(
+		$timjs$elm_collage$Collage$shift,
+		_Utils_Tuple2(envelope.toLeft - x_center, envelope.toBottom - y_center),
+		collage);
+};
 var $rtfeldman$elm_css$Html$Styled$Attributes$class = $rtfeldman$elm_css$Html$Styled$Attributes$stringProperty('className');
 var $rtfeldman$elm_css$Css$color = function (c) {
 	return A2($rtfeldman$elm_css$Css$property, 'color', c.value);
 };
 var $rtfeldman$elm_css$Css$cursor = $rtfeldman$elm_css$Css$prop1('cursor');
+var $timjs$elm_collage$Collage$Layout$height = function (col) {
+	var _v0 = $timjs$elm_collage$Collage$Layout$distances(col);
+	var toTop = _v0.toTop;
+	var toBottom = _v0.toBottom;
+	return toTop + toBottom;
+};
+var $timjs$elm_collage$Collage$scaleXY = F2(
+	function (_v0, collage) {
+		var sx = _v0.a;
+		var sy = _v0.b;
+		var _v1 = collage.scale;
+		var sx0 = _v1.a;
+		var sy0 = _v1.b;
+		return _Utils_update(
+			collage,
+			{
+				scale: _Utils_Tuple2(sx0 * sx, sy0 * sy)
+			});
+	});
+var $timjs$elm_collage$Collage$scale = F2(
+	function (s, collage) {
+		return A2(
+			$timjs$elm_collage$Collage$scaleXY,
+			_Utils_Tuple2(s, s),
+			collage);
+	});
+var $timjs$elm_collage$Collage$Layout$width = function (col) {
+	var _v0 = $timjs$elm_collage$Collage$Layout$distances(col);
+	var toLeft = _v0.toLeft;
+	var toRight = _v0.toRight;
+	return toLeft + toRight;
+};
+var $author$project$Main$fit_in_window = F2(
+	function (_v0, collage) {
+		var window_width = _v0.a;
+		var window_height = _v0.b;
+		var vertical = window_height / $timjs$elm_collage$Collage$Layout$height(collage);
+		var horizontal = window_width / $timjs$elm_collage$Collage$Layout$width(collage);
+		return A2(
+			$timjs$elm_collage$Collage$scale,
+			A2($elm$core$Basics$min, vertical, horizontal),
+			collage);
+	});
 var $rtfeldman$elm_css$Css$withPrecedingHash = function (str) {
 	return A2($elm$core$String$startsWith, '#', str) ? str : A2(
 		$elm$core$String$cons,
@@ -12056,7 +12343,6 @@ var $rtfeldman$elm_css$Css$hex = function (str) {
 	}
 	return $rtfeldman$elm_css$Css$erroneousHex(str);
 };
-var $rtfeldman$elm_css$Css$hidden = {borderStyle: $rtfeldman$elm_css$Css$Structure$Compatible, overflow: $rtfeldman$elm_css$Css$Structure$Compatible, value: 'hidden', visibility: $rtfeldman$elm_css$Css$Structure$Compatible};
 var $rtfeldman$elm_css$Css$Preprocess$ExtendSelector = F2(
 	function (a, b) {
 		return {$: 'ExtendSelector', a: a, b: b};
@@ -12734,7 +13020,11 @@ var $rtfeldman$elm_css$Html$Styled$text = $rtfeldman$elm_css$VirtualDom$Styled$t
 var $rtfeldman$elm_css$Css$visibility = $rtfeldman$elm_css$Css$prop1('visibility');
 var $author$project$Main$make_thumbnail = F2(
 	function (thumbnail_size, map) {
-		var shift_size = thumbnail_size / 2;
+		var resize_map = A2(
+			$elm$core$Basics$composeR,
+			$author$project$Main$fit_in_window(
+				_Utils_Tuple2(thumbnail_size, thumbnail_size)),
+			$author$project$Main$center_on_content);
 		var line_style = A2(
 			$timjs$elm_collage$Collage$solid,
 			$timjs$elm_collage$Collage$thick,
@@ -12743,19 +13033,17 @@ var $author$project$Main$make_thumbnail = F2(
 			A4($avh4$elm_color$Color$rgba, 1, 1, 1, 0.5));
 		var convert_walls = $author$project$Main$path_to_collage(
 			$author$project$Grid$mapSame(
-				$elm$core$Basics$mul(8)));
+				$elm$core$Basics$mul(10)));
 		var convert_ground = A2(
 			$author$project$Main$shape_to_collage,
 			$author$project$Grid$mapSame(
-				$elm$core$Basics$mul(8)),
+				$elm$core$Basics$mul(10)),
 			fill_style);
 		var display = $rtfeldman$elm_css$Svg$Styled$fromUnstyled(
 			A2(
 				$timjs$elm_collage$Collage$Render$svgBox,
 				_Utils_Tuple2(thumbnail_size, thumbnail_size),
-				A2(
-					$timjs$elm_collage$Collage$shift,
-					_Utils_Tuple2(-shift_size, -shift_size),
+				resize_map(
 					$timjs$elm_collage$Collage$group(
 						_Utils_ap(
 							A2($elm$core$List$map, convert_walls, map.walls),
@@ -12803,9 +13091,9 @@ var $author$project$Main$make_thumbnail = F2(
 								[
 									$rtfeldman$elm_css$Css$position($rtfeldman$elm_css$Css$absolute),
 									$rtfeldman$elm_css$Css$bottom(
-									$rtfeldman$elm_css$Css$px(5)),
+									$rtfeldman$elm_css$Css$px(2)),
 									$rtfeldman$elm_css$Css$left(
-									$rtfeldman$elm_css$Css$px(5)),
+									$rtfeldman$elm_css$Css$px(0)),
 									$rtfeldman$elm_css$Css$padding(
 									$rtfeldman$elm_css$Css$px(5)),
 									$rtfeldman$elm_css$Css$borderRadius(
@@ -12825,6 +13113,7 @@ var $author$project$Main$make_thumbnail = F2(
 						]))
 				]));
 	});
+var $rtfeldman$elm_css$Css$margin = $rtfeldman$elm_css$Css$prop1('margin');
 var $rtfeldman$elm_css$Css$prop2 = F3(
 	function (key, argA, argB) {
 		return A2(
@@ -12842,69 +13131,136 @@ var $rtfeldman$elm_css$Css$PercentageUnits = {$: 'PercentageUnits'};
 var $rtfeldman$elm_css$Css$pct = A2($rtfeldman$elm_css$Css$Internal$lengthConverter, $rtfeldman$elm_css$Css$PercentageUnits, '%');
 var $rtfeldman$elm_css$Css$wrap = {flexDirectionOrWrap: $rtfeldman$elm_css$Css$Structure$Compatible, flexWrap: $rtfeldman$elm_css$Css$Structure$Compatible, value: 'wrap'};
 var $rtfeldman$elm_css$Css$zero = {length: $rtfeldman$elm_css$Css$Structure$Compatible, lengthOrAuto: $rtfeldman$elm_css$Css$Structure$Compatible, lengthOrAutoOrCoverOrContain: $rtfeldman$elm_css$Css$Structure$Compatible, lengthOrMinMaxDimension: $rtfeldman$elm_css$Css$Structure$Compatible, lengthOrNone: $rtfeldman$elm_css$Css$Structure$Compatible, lengthOrNoneOrMinMaxDimension: $rtfeldman$elm_css$Css$Structure$Compatible, lengthOrNumber: $rtfeldman$elm_css$Css$Structure$Compatible, number: $rtfeldman$elm_css$Css$Structure$Compatible, numericValue: 0, outline: $rtfeldman$elm_css$Css$Structure$Compatible, unitLabel: '', units: $rtfeldman$elm_css$Css$UnitlessInteger, value: '0'};
-var $author$project$Main$map_gallery = function (maps) {
-	var thumbnails = A2(
-		$elm$core$List$map,
-		$author$project$Main$make_thumbnail(190),
-		maps);
-	var make_flexbox = function (content) {
-		return A2(
-			$rtfeldman$elm_css$Html$Styled$div,
-			_List_fromArray(
-				[
-					$rtfeldman$elm_css$Html$Styled$Attributes$css(
-					_List_fromArray(
-						[
-							$rtfeldman$elm_css$Css$flexBasis(
-							$rtfeldman$elm_css$Css$pct(25)),
-							A2(
-							$rtfeldman$elm_css$Css$padding2,
-							$rtfeldman$elm_css$Css$zero,
-							$rtfeldman$elm_css$Css$px(8))
-						])),
-					$rtfeldman$elm_css$Html$Styled$Attributes$align('center')
-				]),
-			_List_fromArray(
-				[content]));
-	};
-	return A2(
-		$rtfeldman$elm_css$Html$Styled$div,
-		_List_fromArray(
-			[
-				$rtfeldman$elm_css$Html$Styled$Attributes$align('center')
-			]),
-		_List_fromArray(
-			[
-				A2(
-				$rtfeldman$elm_css$Html$Styled$h3,
-				_List_fromArray(
-					[
-						A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'color', '#F7F9F9')
-					]),
-				_List_fromArray(
-					[
-						$rtfeldman$elm_css$Html$Styled$text('Gallery')
-					])),
-				A2(
+var $author$project$Main$map_gallery = F2(
+	function (page_num, maps) {
+		var page_max = (($elm$core$List$length(maps) - 1) / 6) | 0;
+		var make_flexbox = function (content) {
+			return A2(
 				$rtfeldman$elm_css$Html$Styled$div,
 				_List_fromArray(
 					[
 						$rtfeldman$elm_css$Html$Styled$Attributes$css(
 						_List_fromArray(
 							[
-								$rtfeldman$elm_css$Css$displayFlex,
-								$rtfeldman$elm_css$Css$flexWrap($rtfeldman$elm_css$Css$wrap),
+								$rtfeldman$elm_css$Css$flexBasis(
+								$rtfeldman$elm_css$Css$pct(25)),
 								A2(
-								$rtfeldman$elm_css$Css$margin2,
+								$rtfeldman$elm_css$Css$padding2,
 								$rtfeldman$elm_css$Css$zero,
-								$rtfeldman$elm_css$Css$px(-8)),
-								$rtfeldman$elm_css$Css$justifyContent($rtfeldman$elm_css$Css$center),
-								$rtfeldman$elm_css$Css$alignItems($rtfeldman$elm_css$Css$center)
-							]))
+								$rtfeldman$elm_css$Css$px(8))
+							])),
+						$rtfeldman$elm_css$Html$Styled$Attributes$align('center')
 					]),
-				A2($elm$core$List$map, make_flexbox, thumbnails))
-			]));
-};
+				_List_fromArray(
+					[content]));
+		};
+		var make_thumbnails = $elm$core$List$map(
+			A2(
+				$elm$core$Basics$composeR,
+				$author$project$Main$make_thumbnail(140),
+				make_flexbox));
+		var get_page = A2(
+			$elm$core$Basics$composeR,
+			$elm$core$List$drop(6 * page_num),
+			$elm$core$List$take(6));
+		return A2(
+			$rtfeldman$elm_css$Html$Styled$div,
+			_List_fromArray(
+				[
+					$rtfeldman$elm_css$Html$Styled$Attributes$align('center')
+				]),
+			_List_fromArray(
+				[
+					A2(
+					$rtfeldman$elm_css$Html$Styled$h3,
+					_List_fromArray(
+						[
+							A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'color', '#F7F9F9')
+						]),
+					_List_fromArray(
+						[
+							$rtfeldman$elm_css$Html$Styled$text('Gallery')
+						])),
+					A2(
+					$rtfeldman$elm_css$Html$Styled$div,
+					_List_fromArray(
+						[
+							$rtfeldman$elm_css$Html$Styled$Attributes$css(
+							_List_fromArray(
+								[
+									$rtfeldman$elm_css$Css$displayFlex,
+									$rtfeldman$elm_css$Css$flexWrap($rtfeldman$elm_css$Css$wrap),
+									A2(
+									$rtfeldman$elm_css$Css$margin2,
+									$rtfeldman$elm_css$Css$zero,
+									$rtfeldman$elm_css$Css$px(-8)),
+									$rtfeldman$elm_css$Css$justifyContent($rtfeldman$elm_css$Css$center),
+									$rtfeldman$elm_css$Css$alignItems($rtfeldman$elm_css$Css$center),
+									$rtfeldman$elm_css$Css$height(
+									$rtfeldman$elm_css$Css$px(435))
+								]))
+						]),
+					make_thumbnails(
+						get_page(maps))),
+					A2(
+					$rtfeldman$elm_css$Html$Styled$div,
+					_List_fromArray(
+						[
+							A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'width', '100%'),
+							A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'margin-top', '20px'),
+							A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'margin-bottom', '5px')
+						]),
+					_List_fromArray(
+						[
+							A2(
+							$rtfeldman$elm_css$Html$Styled$button,
+							_List_fromArray(
+								[
+									A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'width', '35%'),
+									$rtfeldman$elm_css$Html$Styled$Events$onClick(
+									$author$project$Main$GoToGalleryPage(
+										A2($elm$core$Basics$max, page_num - 1, 0)))
+								]),
+							_List_fromArray(
+								[
+									$rtfeldman$elm_css$Html$Styled$text('\u25C5')
+								])),
+							A2(
+							$rtfeldman$elm_css$Html$Styled$span,
+							_List_fromArray(
+								[
+									$rtfeldman$elm_css$Html$Styled$Attributes$css(
+									_List_fromArray(
+										[
+											$rtfeldman$elm_css$Css$margin(
+											$rtfeldman$elm_css$Css$px(10))
+										]))
+								]),
+							_List_fromArray(
+								[
+									$rtfeldman$elm_css$Html$Styled$text('Pg '),
+									$rtfeldman$elm_css$Html$Styled$text(
+									$elm$core$String$fromInt(page_num + 1)),
+									$rtfeldman$elm_css$Html$Styled$text('/'),
+									$rtfeldman$elm_css$Html$Styled$text(
+									$elm$core$String$fromInt(page_max + 1))
+								])),
+							A2(
+							$rtfeldman$elm_css$Html$Styled$button,
+							_List_fromArray(
+								[
+									A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'width', '35%'),
+									$rtfeldman$elm_css$Html$Styled$Events$onClick(
+									$author$project$Main$GoToGalleryPage(
+										A2($elm$core$Basics$min, page_num + 1, page_max)))
+								]),
+							_List_fromArray(
+								[
+									$rtfeldman$elm_css$Html$Styled$text('\u25BB')
+								]))
+						]))
+				]));
+	});
 var $rtfeldman$elm_css$Html$Styled$Events$alwaysStop = function (x) {
 	return _Utils_Tuple2(x, true);
 };
@@ -12952,221 +13308,11 @@ var $timjs$elm_collage$Collage$Layout$align = F2(
 				anchor(col)),
 			col);
 	});
-var $elm$core$Basics$cos = _Basics_cos;
-var $elm$core$Basics$sin = _Basics_sin;
-var $timjs$elm_collage$Collage$Core$apply = function (_v0) {
-	var shift = _v0.shift;
-	var scale = _v0.scale;
-	var rotation = _v0.rotation;
-	var rotated = function (_v5) {
-		var x = _v5.a;
-		var y = _v5.b;
-		var s = $elm$core$Basics$sin(rotation);
-		var c = $elm$core$Basics$cos(rotation);
-		return _Utils_Tuple2((c * x) - (s * y), (s * x) + (c * y));
-	};
-	var _v1 = scale;
-	var sx = _v1.a;
-	var sy = _v1.b;
-	var scaled = function (_v4) {
-		var x = _v4.a;
-		var y = _v4.b;
-		return _Utils_Tuple2(sx * x, sy * y);
-	};
-	var _v2 = shift;
-	var dx = _v2.a;
-	var dy = _v2.b;
-	var shifted = function (_v3) {
-		var x = _v3.a;
-		var y = _v3.b;
-		return _Utils_Tuple2(x + dx, y + dy);
-	};
-	return A2(
-		$elm$core$Basics$composeL,
-		A2($elm$core$Basics$composeL, shifted, scaled),
-		rotated);
-};
-var $timjs$elm_collage$Collage$Layout$handlePoints = function (thickness) {
-	var thicken = function (_v0) {
-		var x = _v0.a;
-		var y = _v0.b;
-		var t = thickness / 2;
-		return _Utils_Tuple2(
-			(x < 0) ? (x - t) : (x + t),
-			(y < 0) ? (y - t) : (y + t));
-	};
-	return $elm$core$List$map(thicken);
-};
-var $timjs$elm_collage$Collage$Layout$handleBox = F2(
-	function (thickness, _v0) {
-		var w = _v0.a;
-		var h = _v0.b;
-		var y = h / 2;
-		var x = w / 2;
-		return A2(
-			$timjs$elm_collage$Collage$Layout$handlePoints,
-			thickness,
-			_List_fromArray(
-				[
-					_Utils_Tuple2(-x, -y),
-					_Utils_Tuple2(x, -y),
-					_Utils_Tuple2(x, y),
-					_Utils_Tuple2(-x, y)
-				]));
-	});
-var $elm$core$List$minimum = function (list) {
-	if (list.b) {
-		var x = list.a;
-		var xs = list.b;
-		return $elm$core$Maybe$Just(
-			A3($elm$core$List$foldl, $elm$core$Basics$min, x, xs));
-	} else {
-		return $elm$core$Maybe$Nothing;
-	}
-};
-var $timjs$elm_collage$Collage$Layout$unpack = function (_v0) {
-	var toTop = _v0.toTop;
-	var toBottom = _v0.toBottom;
-	var toRight = _v0.toRight;
-	var toLeft = _v0.toLeft;
-	return _List_fromArray(
-		[
-			_Utils_Tuple2(-toLeft, -toBottom),
-			_Utils_Tuple2(toRight, -toBottom),
-			_Utils_Tuple2(toRight, toTop),
-			_Utils_Tuple2(-toLeft, toTop)
-		]);
-};
-var $timjs$elm_collage$Collage$Layout$distances = function (col) {
-	var points = $timjs$elm_collage$Collage$Layout$handleBasic(col.basic);
-	var _v8 = $elm$core$List$unzip(
-		A2(
-			$elm$core$List$map,
-			$timjs$elm_collage$Collage$Core$apply(col),
-			points));
-	var xs = _v8.a;
-	var ys = _v8.b;
-	return {
-		toBottom: -A2(
-			$elm$core$Maybe$withDefault,
-			0,
-			$elm$core$List$minimum(ys)),
-		toLeft: -A2(
-			$elm$core$Maybe$withDefault,
-			0,
-			$elm$core$List$minimum(xs)),
-		toRight: A2(
-			$elm$core$Maybe$withDefault,
-			0,
-			$elm$core$List$maximum(xs)),
-		toTop: A2(
-			$elm$core$Maybe$withDefault,
-			0,
-			$elm$core$List$maximum(ys))
-	};
-};
-var $timjs$elm_collage$Collage$Layout$handleBasic = function (basic) {
-	handleBasic:
-	while (true) {
-		switch (basic.$) {
-			case 'Shape':
-				switch (basic.b.$) {
-					case 'Circle':
-						var _v1 = basic.a;
-						var thickness = _v1.b.thickness;
-						var r = basic.b.a;
-						var d = 2 * r;
-						return A2(
-							$timjs$elm_collage$Collage$Layout$handleBox,
-							thickness,
-							_Utils_Tuple2(d, d));
-					case 'Ellipse':
-						var _v2 = basic.a;
-						var thickness = _v2.b.thickness;
-						var _v3 = basic.b;
-						var rx = _v3.a;
-						var ry = _v3.b;
-						return A2(
-							$timjs$elm_collage$Collage$Layout$handleBox,
-							thickness,
-							_Utils_Tuple2(2 * rx, 2 * ry));
-					case 'Rectangle':
-						var _v4 = basic.a;
-						var thickness = _v4.b.thickness;
-						var _v5 = basic.b;
-						var w = _v5.a;
-						var h = _v5.b;
-						return A2(
-							$timjs$elm_collage$Collage$Layout$handleBox,
-							thickness,
-							_Utils_Tuple2(w, h));
-					case 'Polygon':
-						var _v6 = basic.a;
-						var thickness = _v6.b.thickness;
-						var ps = basic.b.a;
-						return A2($timjs$elm_collage$Collage$Layout$handlePoints, thickness, ps);
-					default:
-						var _v7 = basic.a;
-						var line = _v7.b;
-						var path = basic.b.a;
-						var $temp$basic = A2($timjs$elm_collage$Collage$Core$Path, line, path);
-						basic = $temp$basic;
-						continue handleBasic;
-				}
-			case 'Path':
-				var thickness = basic.a.thickness;
-				var cap = basic.a.cap;
-				var ps = basic.b.a;
-				return A2(
-					$timjs$elm_collage$Collage$Layout$handlePoints,
-					_Utils_eq(cap, $timjs$elm_collage$Collage$Flat) ? 0 : thickness,
-					ps);
-			case 'Text':
-				var dims = basic.a;
-				return A2($timjs$elm_collage$Collage$Layout$handleBox, 0, dims);
-			case 'Image':
-				var dims = basic.a;
-				return A2($timjs$elm_collage$Collage$Layout$handleBox, 0, dims);
-			case 'Html':
-				var dims = basic.a;
-				return A2($timjs$elm_collage$Collage$Layout$handleBox, 0, dims);
-			case 'Group':
-				var cols = basic.a;
-				return A2(
-					$timjs$elm_collage$Collage$Layout$handlePoints,
-					0,
-					$elm$core$List$concat(
-						A2(
-							$elm$core$List$map,
-							A2($elm$core$Basics$composeR, $timjs$elm_collage$Collage$Layout$distances, $timjs$elm_collage$Collage$Layout$unpack),
-							cols)));
-			default:
-				var back = basic.b;
-				return A2(
-					$timjs$elm_collage$Collage$Layout$handlePoints,
-					0,
-					$timjs$elm_collage$Collage$Layout$unpack(
-						$timjs$elm_collage$Collage$Layout$distances(back)));
-		}
-	}
-};
-var $timjs$elm_collage$Collage$Layout$height = function (col) {
-	var _v0 = $timjs$elm_collage$Collage$Layout$distances(col);
-	var toTop = _v0.toTop;
-	var toBottom = _v0.toBottom;
-	return toTop + toBottom;
-};
 var $timjs$elm_collage$Collage$Layout$topLeft = function (col) {
 	var _v0 = $timjs$elm_collage$Collage$Layout$distances(col);
 	var toLeft = _v0.toLeft;
 	var toTop = _v0.toTop;
 	return _Utils_Tuple2(-toLeft, toTop);
-};
-var $timjs$elm_collage$Collage$Layout$width = function (col) {
-	var _v0 = $timjs$elm_collage$Collage$Layout$distances(col);
-	var toLeft = _v0.toLeft;
-	var toRight = _v0.toRight;
-	return toLeft + toRight;
 };
 var $timjs$elm_collage$Collage$Render$svg = function (collage) {
 	return A2(
@@ -14254,67 +14400,169 @@ var $author$project$Main$view = function (model) {
 		$rtfeldman$elm_css$Html$Styled$div,
 		_List_fromArray(
 			[
-				A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'display', 'flex')
+				$rtfeldman$elm_css$Html$Styled$Attributes$align('center'),
+				A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'color', '#FBFBFB')
 			]),
 		_List_fromArray(
 			[
 				A2(
-				$rtfeldman$elm_css$Html$Styled$aside,
+				$rtfeldman$elm_css$Html$Styled$h3,
 				_List_fromArray(
 					[
-						$rtfeldman$elm_css$Html$Styled$Attributes$css(
-						_List_fromArray(
-							[
-								$rtfeldman$elm_css$Css$width(
-								$rtfeldman$elm_css$Css$pct(20))
-							])),
-						A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'background', '#333333'),
-						$rtfeldman$elm_css$Html$Styled$Attributes$align('center')
+						$rtfeldman$elm_css$Html$Styled$Attributes$align('center'),
+						A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'margin', '15px'),
+						A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'font', '25px Optima, sans-serif'),
+						A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'display', 'inline-block')
 					]),
 				_List_fromArray(
 					[
-						$author$project$Main$map_gallery(model.galleryMaps),
-						savebar
+						$rtfeldman$elm_css$Html$Styled$text(msg),
+						A2(
+						$rtfeldman$elm_css$Html$Styled$sup,
+						_List_Nil,
+						_List_fromArray(
+							[
+								$rtfeldman$elm_css$Html$Styled$text('\u2122')
+							]))
+					])),
+				A2(
+				$rtfeldman$elm_css$Html$Styled$span,
+				_List_fromArray(
+					[
+						A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'display', 'inline-block'),
+						A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'font', '15px Optima, sans-serif'),
+						A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'margin', '25px'),
+						A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'position', 'absolute'),
+						A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'right', '0')
+					]),
+				_List_fromArray(
+					[
+						$rtfeldman$elm_css$Html$Styled$text('By '),
+						A2(
+						$rtfeldman$elm_css$Html$Styled$a,
+						_List_fromArray(
+							[
+								A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'color', '#FBFBFB'),
+								$rtfeldman$elm_css$Html$Styled$Attributes$href('https://github.com/rachelxwang')
+							]),
+						_List_fromArray(
+							[
+								$rtfeldman$elm_css$Html$Styled$text('Rachel Wang')
+							])),
+						$rtfeldman$elm_css$Html$Styled$text(' and '),
+						A2(
+						$rtfeldman$elm_css$Html$Styled$a,
+						_List_fromArray(
+							[
+								A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'color', '#FBFBFB'),
+								$rtfeldman$elm_css$Html$Styled$Attributes$href('https://github.com/vlagrassa')
+							]),
+						_List_fromArray(
+							[
+								$rtfeldman$elm_css$Html$Styled$text('Vince LaGrassa')
+							]))
 					])),
 				A2(
 				$rtfeldman$elm_css$Html$Styled$div,
 				_List_fromArray(
 					[
-						$rtfeldman$elm_css$Html$Styled$Attributes$css(
-						_List_fromArray(
-							[
-								$rtfeldman$elm_css$Css$flex(
-								$rtfeldman$elm_css$Css$int(1)),
-								$rtfeldman$elm_css$Css$overflow($rtfeldman$elm_css$Css$auto)
-							]))
+						A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'display', 'flex')
 					]),
 				_List_fromArray(
 					[
 						A2(
+						$rtfeldman$elm_css$Html$Styled$aside,
+						_List_fromArray(
+							[
+								$rtfeldman$elm_css$Html$Styled$Attributes$css(
+								_List_fromArray(
+									[
+										$rtfeldman$elm_css$Css$width(
+										$rtfeldman$elm_css$Css$pct(20))
+									])),
+								A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'background', '#444444'),
+								$rtfeldman$elm_css$Html$Styled$Attributes$align('center')
+							]),
+						_List_fromArray(
+							[
+								A2($author$project$Main$map_gallery, model.galleryPage, model.galleryMaps),
+								savebar
+							])),
+						A2(
 						$rtfeldman$elm_css$Html$Styled$div,
-						_List_Nil,
+						_List_fromArray(
+							[
+								$rtfeldman$elm_css$Html$Styled$Attributes$css(
+								_List_fromArray(
+									[
+										$rtfeldman$elm_css$Css$flex(
+										$rtfeldman$elm_css$Css$int(1)),
+										$rtfeldman$elm_css$Css$height(
+										$rtfeldman$elm_css$Css$px(655)),
+										$rtfeldman$elm_css$Css$width(
+										$rtfeldman$elm_css$Css$pct(60)),
+										$rtfeldman$elm_css$Css$overflow($rtfeldman$elm_css$Css$hidden)
+									]))
+							]),
 						_List_fromArray(
 							[
 								A2(
-								$rtfeldman$elm_css$Html$Styled$h3,
+								$rtfeldman$elm_css$Html$Styled$div,
+								_List_Nil,
 								_List_fromArray(
 									[
-										$rtfeldman$elm_css$Html$Styled$Attributes$align('center'),
-										A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'margin', '15px'),
-										A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'font', '25px Optima, sans-serif'),
-										A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'color', '#FBFBFB')
-									]),
-								_List_fromArray(
-									[
-										$rtfeldman$elm_css$Html$Styled$text(msg),
 										A2(
-										$rtfeldman$elm_css$Html$Styled$sup,
-										_List_Nil,
+										$rtfeldman$elm_css$Html$Styled$div,
 										_List_fromArray(
 											[
-												$rtfeldman$elm_css$Html$Styled$text('\u2122')
-											]))
+												$rtfeldman$elm_css$Html$Styled$Attributes$id('map_canvas_container'),
+												A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'display', 'block'),
+												$rtfeldman$elm_css$Html$Styled$Attributes$align('center')
+											]),
+										_List_fromArray(
+											[map])),
+										A2(
+										$rtfeldman$elm_css$Html$Styled$canvas,
+										_Utils_ap(
+											_List_fromArray(
+												[
+													A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'display', 'none')
+												]),
+											$author$project$Main$canvas_attributes(model)),
+										_List_Nil)
+									]))
+							])),
+						A2(
+						$rtfeldman$elm_css$Html$Styled$aside,
+						_List_fromArray(
+							[
+								$rtfeldman$elm_css$Html$Styled$Attributes$css(
+								_List_fromArray(
+									[
+										$rtfeldman$elm_css$Css$width(
+										$rtfeldman$elm_css$Css$pct(20))
 									])),
+								A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'background', '#444444'),
+								$rtfeldman$elm_css$Html$Styled$Attributes$align('center'),
+								$rtfeldman$elm_css$Html$Styled$Attributes$css(
+								_List_fromArray(
+									[
+										$rtfeldman$elm_css$Css$displayFlex,
+										$rtfeldman$elm_css$Css$flexWrap($rtfeldman$elm_css$Css$wrap),
+										$rtfeldman$elm_css$Css$justifyContent($rtfeldman$elm_css$Css$center),
+										$rtfeldman$elm_css$Css$alignItems($rtfeldman$elm_css$Css$center)
+									]))
+							]),
+						_List_fromArray(
+							[
+								A2(
+								$rtfeldman$elm_css$Html$Styled$div,
+								_List_fromArray(
+									[
+										$rtfeldman$elm_css$Html$Styled$Attributes$align('center')
+									]),
+								_List_fromArray(
+									[menu_items])),
 								A2(
 								$rtfeldman$elm_css$Html$Styled$div,
 								_List_fromArray(
@@ -14329,47 +14577,18 @@ var $author$project$Main$view = function (model) {
 										[
 											$carwow$elm_slider$SingleSlider$view(model.widthSlider),
 											$carwow$elm_slider$SingleSlider$view(model.heightSlider)
-										]))),
-								A2(
-								$rtfeldman$elm_css$Html$Styled$div,
-								_List_fromArray(
-									[
-										$rtfeldman$elm_css$Html$Styled$Attributes$id('map_canvas_container'),
-										A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'display', 'block'),
-										$rtfeldman$elm_css$Html$Styled$Attributes$align('center')
-									]),
-								_List_fromArray(
-									[
-										A2(
-										$rtfeldman$elm_css$Html$Styled$div,
-										_List_fromArray(
-											[
-												A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'display', 'inline-block')
-											]),
-										_List_fromArray(
-											[map])),
-										menu_items
-									])),
-								A2(
-								$rtfeldman$elm_css$Html$Styled$canvas,
-								_Utils_ap(
-									_List_fromArray(
-										[
-											A2($rtfeldman$elm_css$Html$Styled$Attributes$style, 'display', 'none')
-										]),
-									$author$project$Main$canvas_attributes(model)),
-								_List_Nil)
-							]))
-					])),
-				$rtfeldman$elm_css$Css$Global$global(
-				_List_fromArray(
-					[
-						A2(
-						$rtfeldman$elm_css$Css$Global$typeSelector,
-						'.gallerymapcontainer:hover .gallerymaptag',
+										])))
+							])),
+						$rtfeldman$elm_css$Css$Global$global(
 						_List_fromArray(
 							[
-								$rtfeldman$elm_css$Css$visibility($rtfeldman$elm_css$Css$visible)
+								A2(
+								$rtfeldman$elm_css$Css$Global$typeSelector,
+								'.gallerymapcontainer:hover .gallerymaptag',
+								_List_fromArray(
+									[
+										$rtfeldman$elm_css$Css$visibility($rtfeldman$elm_css$Css$visible)
+									]))
 							]))
 					]))
 			]));
