@@ -654,19 +654,43 @@ draw_mouse model =
         |> C.shift (jsToCol model loc)
 
 
+
+
+center_on_content : C.Collage Msg -> C.Collage Msg
+center_on_content collage =
+  let
+    envelope = L.distances collage
+    x_center = (envelope.toRight + envelope.toLeft) / 2
+    y_center = (envelope.toTop + envelope.toBottom) / 2
+  in
+    collage
+      |> C.shift (envelope.toLeft - x_center, envelope.toBottom - y_center)
+
+fit_in_window : (Float, Float) -> C.Collage Msg -> C.Collage Msg
+fit_in_window (window_width, window_height) collage =
+  let
+    vertical   = window_height / (L.height collage)
+    horizontal = window_width  / (L.width  collage)
+  in
+    C.scale (min vertical horizontal) collage
+
 make_thumbnail : Float -> Map -> Html Msg
 make_thumbnail thumbnail_size map =
   let
+    -- Basic/Default Styling
     fill_style = C.uniform (Color.rgba 1 1 1 0.5)
     line_style = C.solid C.thick (C.uniform Color.black)
 
-    shift_size = thumbnail_size / 2
+    -- Doing this makes sure the lines have the appropriate thickness within the thumbnails
+    convert_ground = shape_to_collage (Grid.mapSame ((*) 10)) fill_style
+    convert_walls  = path_to_collage  (Grid.mapSame ((*) 10))
 
-    convert_ground = shape_to_collage (Grid.mapSame ((*) 8)) fill_style -- (fill_style, line_style)
-    convert_walls  = path_to_collage  (Grid.mapSame ((*) 8)) -- line_style
+    -- Resize the map to fit within the thumbnail
+    resize_map = fit_in_window (thumbnail_size, thumbnail_size) >> center_on_content
 
+    -- Make the thumbnail as an SVG element
     display = List.map convert_walls map.walls ++ List.map convert_ground map.ground
-      |> C.group |> C.shift (-shift_size, -shift_size)
+      |> C.group |> resize_map
       |> R.svgBox (thumbnail_size, thumbnail_size) |> Svg.Styled.fromUnstyled
   in
     Html.div
